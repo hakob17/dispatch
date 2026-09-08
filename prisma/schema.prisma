@@ -1,0 +1,379 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Channel {
+  EMAIL
+  WEB_PUSH
+  FCM
+  APNS
+  WEBHOOK
+  SMS
+  WHATSAPP
+}
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  RUNNING
+  COMPLETED
+  CANCELED
+  FAILED
+}
+
+enum MessageStatus {
+  QUEUED
+  SENDING
+  SENT
+  DELIVERED
+  BOUNCED
+  FAILED
+  SUPPRESSED
+  HELD_OUT // control-group holdout — never sent, used to measure lift
+}
+
+enum CampaignTrigger {
+  SCHEDULED // classic: launch now / at a time
+  EVENT // action-based: fires when a contact performs triggerEvent
+}
+
+enum Recurrence {
+  NONE
+  DAILY
+  WEEKLY
+}
+
+enum SuppressionReason {
+  UNSUBSCRIBE
+  BOUNCE
+  COMPLAINT
+  MANUAL
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  DONE
+  FAILED
+}
+
+enum EventType {
+  DELIVERY
+  OPEN
+  CLICK
+  BOUNCE
+  COMPLAINT
+  UNSUBSCRIBE
+}
+
+enum JourneyStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum UserRole {
+  ADMIN
+  USER
+}
+
+// Dashboard login accounts (team members), not contacts
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  passwordHash String
+  role         UserRole @default(USER)
+  createdAt    DateTime @default(now())
+}
+
+model Contact {
+  id            String             @id @default(cuid())
+  email         String?            @unique
+  phone         String?
+  firstName     String?
+  lastName      String?
+  attributes    Json               @default("{}")
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  subscriptions PushSubscription[]
+  messages      Message[]
+  events        ContactEvent[]
+  journeyRuns   JourneyRun[]
+  subscriptionStates SubscriptionState[]
+}
+
+// Custom events tracked via /api/track (Braze-style event tracking)
+model ContactEvent {
+  id         String   @id @default(cuid())
+  contactId  String
+  name       String
+  properties Json     @default("{}")
+  createdAt  DateTime @default(now())
+  contact    Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([contactId, name])
+  @@index([name, createdAt])
+}
+
+model PushSubscription {
+  id         String    @id @default(cuid())
+  contactId  String
+  channel    Channel // WEB_PUSH | FCM | APNS
+  endpoint   String // web-push endpoint URL, or FCM/APNs token
+  keys       Json? // web push: { p256dh, auth }
+  isActive   Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  contact    Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  messages   Message[]
+
+  @@unique([channel, endpoint])
+}
+
+model Segment {
+  id        String     @id @default(cuid())
+  name      String
+  filters   Json // [{ field, op, value }] AND-combined; field: email|firstName|lastName|attributes.x|event.<name>
+  tags      Json       @default("[]")
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  campaigns Campaign[]
+  journeys  Journey[]
+}
+
+model MessageTemplate {
+  id         String            @id @default(cuid())
+  name       String
+  channel    Channel
+  subject    String? // email
+  htmlBody   String? // email
+  textBody   String? // email plain part; derived from html if blank
+  pushTitle  String? // push
+  pushBody   String? // push
+  pushUrl    String? // push click-through
+  webhookUrl String? // webhook channel: destination URL
+  webhookBody String? // webhook channel: JSON body template
+  tags       Json              @default("[]")
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  variants   CampaignVariant[]
+  journeySteps JourneyStep[]
+}
+
+model Campaign {
+  id                    String          @id @default(cuid())
+  name                  String
+  channel               Channel
+  segmentId             String?
+  status                CampaignStatus  @default(DRAFT)
+  trigger               CampaignTrigger @default(SCHEDULED)
+  triggerEvent          String? // event name for EVENT trigger
+  recurrence            Recurrence      @default(NONE)
+  lastRunAt             DateTime? // start of the current/last recurring run
+  conversionEvent       String? // event that counts as a conversion
+  conversionWindowHours Int             @default(72)
+  controlGroupPct       Int             @default(0) // % of audience held out
+  subscriptionGroupId   String?
+  tags                  Json            @default("[]")
+  scheduledAt           DateTime?
+  launchedAt            DateTime?
+  completedAt           DateTime?
+  createdAt             DateTime        @default(now())
+  segment               Segment?           @relation(fields: [segmentId], references: [id])
+  subscriptionGroup     SubscriptionGroup? @relation(fields: [subscriptionGroupId], references: [id])
+  variants              CampaignVariant[] // 1 variant = no A/B test; 2+ = split by weight
+  messages              Message[]
+}
+
+// A/B testing: each campaign has 1+ template variants with a percentage split
+model CampaignVariant {
+  id         String          @id @default(cuid())
+  campaignId String
+  templateId String
+  name       String          @default("A")
+  weight     Int             @default(100) // percentage; weights across a campaign sum to 100
+  campaign   Campaign        @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  template   MessageTemplate @relation(fields: [templateId], references: [id])
+  messages   Message[]
+}
+
+model Message {
+  id                 String            @id @default(cuid())
+  campaignId         String?
+  variantId          String?
+  journeyStepId      String?
+  contactId          String
+  pushSubscriptionId String?
+  channel            Channel
+  status             MessageStatus     @default(QUEUED)
+  providerMessageId  String?           @unique
+  error              String?
+  attempts           Int               @default(0)
+  sentAt             DateTime?
+  deliveredAt        DateTime?
+  openedAt           DateTime?
+  clickedAt          DateTime?
+  convertedAt        DateTime? // contact performed the campaign's conversionEvent in-window
+  createdAt          DateTime          @default(now())
+  campaign           Campaign?         @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  variant            CampaignVariant?  @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  journeyStep        JourneyStep?      @relation(fields: [journeyStepId], references: [id], onDelete: SetNull)
+  contact            Contact           @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  pushSubscription   PushSubscription? @relation(fields: [pushSubscriptionId], references: [id], onDelete: SetNull)
+  events             MessageEvent[]
+
+  @@index([campaignId, status])
+  @@index([contactId, createdAt])
+}
+
+model MessageEvent {
+  id        String    @id @default(cuid())
+  messageId String
+  type      EventType
+  meta      Json?
+  createdAt DateTime  @default(now())
+  message   Message   @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+}
+
+model Suppression {
+  id        String            @id @default(cuid())
+  channel   Channel
+  address   String // lowercased email (or phone/token for other channels)
+  reason    SuppressionReason
+  createdAt DateTime          @default(now())
+
+  @@unique([channel, address])
+}
+
+// Canvas-lite: a journey = entry segment + ordered steps (delay, then message)
+model Journey {
+  id        String        @id @default(cuid())
+  name      String
+  status    JourneyStatus @default(DRAFT)
+  segmentId String? // entry audience; null = all contacts
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  segment   Segment?      @relation(fields: [segmentId], references: [id])
+  steps     JourneyStep[]
+  runs      JourneyRun[]
+}
+
+model JourneyStep {
+  id         String          @id @default(cuid())
+  journeyId  String
+  order      Int
+  delayMinutes Int           @default(0) // wait before this step fires
+  channel    Channel
+  templateId String
+  journey    Journey         @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  template   MessageTemplate @relation(fields: [templateId], references: [id])
+  messages   Message[]
+
+  @@unique([journeyId, order])
+}
+
+// One contact's progress through a journey
+model JourneyRun {
+  id         String    @id @default(cuid())
+  journeyId  String
+  contactId  String
+  currentStep Int      @default(0) // next step order to execute
+  completedAt DateTime?
+  createdAt  DateTime  @default(now())
+  journey    Journey   @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  contact    Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@unique([journeyId, contactId])
+}
+
+model Job {
+  id          String    @id @default(cuid())
+  type        String // LAUNCH_CAMPAIGN | SEND_MESSAGE | ENROLL_JOURNEY | JOURNEY_STEP
+  payload     Json
+  status      JobStatus @default(PENDING)
+  runAt       DateTime  @default(now())
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(3)
+  lastError   String?
+  lockedAt    DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([status, runAt])
+}
+
+model Setting {
+  key   String @id
+  value Json
+}
+
+// Braze-style subscription groups: opt-in/out categories finer than global unsubscribe
+model SubscriptionGroup {
+  id          String              @id @default(cuid())
+  name        String              @unique
+  description String?
+  createdAt   DateTime            @default(now())
+  states      SubscriptionState[]
+  campaigns   Campaign[]
+}
+
+model SubscriptionState {
+  id         String            @id @default(cuid())
+  groupId    String
+  contactId  String
+  subscribed Boolean           @default(true)
+  updatedAt  DateTime          @updatedAt
+  group      SubscriptionGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  contact    Contact           @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, contactId])
+}
+
+// REST API keys for /api/track and /api/push/register-token
+model ApiKey {
+  id         String    @id @default(cuid())
+  name       String
+  prefix     String // first 8 chars, for display
+  keyHash    String    @unique // sha256 of the full key
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+  usage      ApiUsage[]
+}
+
+model ApiUsage {
+  id       String   @id @default(cuid())
+  keyId    String
+  endpoint String
+  date     DateTime @db.Date
+  count    Int      @default(0)
+  key      ApiKey   @relation(fields: [keyId], references: [id], onDelete: Cascade)
+
+  @@unique([keyId, endpoint, date])
+}
+
+model MediaAsset {
+  id        String   @id @default(cuid())
+  filename  String
+  path      String // public URL path, e.g. /uploads/abc.png
+  mime      String
+  size      Int
+  createdAt DateTime @default(now())
+}
+
+// Reusable snippets included in email HTML via {{content_block.<name>}}
+model ContentBlock {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

@@ -1,26 +1,93 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Engagement console — warm editorial-industrial */
+  --paper: #faf7f2;
+  --paper-raised: #ffffff;
+  --paper-sunken: #f1ece3;
+  --ink: #17130e;
+  --ink-soft: #5c5548;
+  --ink-faint: #948b7a;
+  --line: #e3dcce;
+  --line-strong: #c9bfa9;
+  --accent: #e8482b; /* vermillion */
+  --accent-deep: #b8300f;
+  --accent-wash: #fbe9e4;
+  --teal: #0f766e;
+  --teal-wash: #e4f2f0;
+  --amber: #b45309;
+  --amber-wash: #fdf1e0;
+  --good: #15803d;
+  --good-wash: #e6f4ea;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-paper: var(--paper);
+  --color-paper-raised: var(--paper-raised);
+  --color-paper-sunken: var(--paper-sunken);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-faint: var(--ink-faint);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-accent: var(--accent);
+  --color-accent-deep: var(--accent-deep);
+  --color-accent-wash: var(--accent-wash);
+  --color-teal: var(--teal);
+  --color-teal-wash: var(--teal-wash);
+  --color-amber: var(--amber);
+  --color-amber-wash: var(--amber-wash);
+  --color-good: var(--good);
+  --color-good-wash: var(--good-wash);
+  --font-display: var(--font-fraunces);
+  --font-sans: var(--font-plex-sans);
+  --font-mono: var(--font-plex-mono);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-plex-sans), sans-serif;
+  /* paper grain */
+  background-image: radial-gradient(var(--line) 0.5px, transparent 0.5px);
+  background-size: 24px 24px;
+}
+
+h1, h2, h3, .font-display {
+  font-family: var(--font-fraunces), serif;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--paper);
+}
+
+/* staggered page-load reveal */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.rise { animation: rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.rise-1 { animation-delay: 0.05s; }
+.rise-2 { animation-delay: 0.12s; }
+.rise-3 { animation-delay: 0.19s; }
+.rise-4 { animation-delay: 0.26s; }
+
+/* data figures */
+.figure {
+  font-family: var(--font-plex-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* hairline card with hard offset shadow */
+.card {
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  box-shadow: 3px 3px 0 0 var(--paper-sunken);
+}
+.card:hover { border-color: var(--line-strong); }
+
+input, textarea, select {
+  background: var(--paper-raised);
 }

@@ -67,10 +67,10 @@ export async function POST(req: NextRequest) {
   } else {
     if (!contact) return NextResponse.json({ error: "contact required for push/webhook test" }, { status: 400 });
     const subs =
-      template.channel === "WEBHOOK"
+      template.channel === "WEBHOOK" || template.channel === "IN_APP" || template.channel === "CONTENT_CARD"
         ? [null]
         : contact.subscriptions.filter((s) => s.channel === template.channel && s.isActive);
-    if (template.channel !== "WEBHOOK" && !subs.length) {
+    if (template.channel !== "WEBHOOK" && template.channel !== "IN_APP" && template.channel !== "CONTENT_CARD" && !subs.length) {
       return NextResponse.json({ error: "contact has no active subscription on this channel" }, { status: 400 });
     }
     for (const sub of subs) {
@@ -92,6 +92,10 @@ export async function POST(req: NextRequest) {
               providerMessageId: result.providerMessageId,
               sentAt: new Date(),
               ...(result.delivered ? { deliveredAt: new Date() } : {}),
+              // in-app: lands in the contact's message centre like a real send
+              ...(result.content
+                ? { content: result.content as object, expiresAt: new Date(Date.now() + (template.inAppExpiresHours ?? 720) * 3600_000) }
+                : {}),
             }
           : { status: "FAILED", error: result.error },
       });

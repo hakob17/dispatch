@@ -7,8 +7,9 @@ import { getSetting } from "../../settings";
 import type { ChannelAdapter, RenderedMessage, SendResult } from "../types";
 
 export interface SesConfig {
-  accessKeyId: string;
-  secretAccessKey: string;
+  /** Optional: when blank the AWS default chain is used (ECS task role on AWS). */
+  accessKeyId?: string;
+  secretAccessKey?: string;
   region: string;
   fromEmail: string;
   fromName?: string;
@@ -31,7 +32,12 @@ export async function getSesConfig(): Promise<SesConfig | null> {
     configurationSet: stored.configurationSet ?? process.env.SES_CONFIGURATION_SET,
     maxSendRate: stored.maxSendRate ?? (Number(process.env.SES_MAX_SEND_RATE) || undefined),
   };
-  if (!cfg.accessKeyId || !cfg.secretAccessKey || !cfg.fromEmail) return null;
+  if (!cfg.fromEmail) return null;
+  // Explicit keys must come as a pair; otherwise fall back to the IAM role
+  if (!cfg.accessKeyId || !cfg.secretAccessKey) {
+    cfg.accessKeyId = undefined;
+    cfg.secretAccessKey = undefined;
+  }
   return cfg as SesConfig;
 }
 
@@ -40,13 +46,15 @@ export async function getSesConfig(): Promise<SesConfig | null> {
 let cachedClient: { key: string; client: SESv2Client } | null = null;
 
 export function clientFor(cfg: SesConfig): SESv2Client {
-  const key = `${cfg.accessKeyId}:${cfg.secretAccessKey.slice(-6)}:${cfg.region}`;
+  const key = `${cfg.accessKeyId ?? "role"}:${cfg.secretAccessKey?.slice(-6) ?? ""}:${cfg.region}`;
   if (cachedClient?.key !== key) {
     cachedClient = {
       key,
       client: new SESv2Client({
         region: cfg.region,
-        credentials: { accessKeyId: cfg.accessKeyId, secretAccessKey: cfg.secretAccessKey },
+        ...(cfg.accessKeyId && cfg.secretAccessKey
+          ? { credentials: { accessKeyId: cfg.accessKeyId, secretAccessKey: cfg.secretAccessKey } }
+          : {}), // default provider chain: ECS task role / instance profile / env
       }),
     };
   }
@@ -78,7 +86,7 @@ const PERMANENT_ERRORS = new Set([
 
 export const sesAdapter: ChannelAdapter = {
   channel: "EMAIL",
-  configHint: "Add AWS credentials + sender address on the Settings page (or via env vars)",
+  configHint: "Set the sender address on the Settings page (or SES_FROM_EMAIL). On AWS, SES uses the task's IAM role — access keys are optional.",
   async isConfigured() {
     return !!(await getSesConfig());
   },

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { recordEngagement } from "@/lib/tracking/record";
 import { verify } from "@/lib/tracking/sign";
 
 // 1x1 transparent GIF
@@ -11,15 +11,7 @@ export async function GET(req: NextRequest) {
   if (m && s && verify(m, s)) {
     // Fire-and-forget; never block or fail the pixel
     try {
-      const msg = await db.message.findUnique({ where: { id: m }, select: { id: true, openedAt: true } });
-      if (msg) {
-        await db.messageEvent.create({
-          data: { messageId: m, type: "OPEN", meta: { ua: req.headers.get("user-agent") ?? "" } },
-        });
-        if (!msg.openedAt) {
-          await db.message.update({ where: { id: m }, data: { openedAt: new Date() } });
-        }
-      }
+      await recordEngagement(m, "OPEN", { ua: req.headers.get("user-agent") ?? "" });
     } catch {}
   }
   return new NextResponse(PIXEL, {

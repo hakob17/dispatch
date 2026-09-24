@@ -29,16 +29,18 @@ interface EmailRenderInput {
   messageId: string;
   /** false for test sends (no tracking, no unsub) */
   track?: boolean;
+  extraVars?: TemplateVars;
 }
 
 /**
  * Render an email: interpolate vars, wrap links for click tracking, inject open
  * pixel, ensure a visible unsubscribe footer, and produce the plain-text part.
  */
-export function renderEmail({ template, contact, messageId, track = true }: EmailRenderInput): RenderedMessage {
+export function renderEmail({ template, contact, messageId, track = true, extraVars }: EmailRenderInput): RenderedMessage {
   const unsubUrl = `${base()}/u/${makeUnsubToken(contact.id, messageId)}`;
   const vars: TemplateVars = {
     ...contactVars(contact as never),
+    ...(extraVars ?? {}),
     unsubscribeUrl: unsubUrl,
   };
 

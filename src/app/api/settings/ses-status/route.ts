@@ -7,7 +7,7 @@ export async function GET() {
   if (!cfg) {
     return NextResponse.json({
       configured: false,
-      hint: "Add AWS credentials + sender address in the form below (or via env vars).",
+      hint: "Set the sender address in the form below (or SES_FROM_EMAIL). On AWS the task IAM role supplies credentials.",
     });
   }
   const client = clientFor(cfg);

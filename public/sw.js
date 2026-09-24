@@ -11,6 +11,9 @@ self.addEventListener("push", (event) => {
     self.registration.showNotification(data.title, {
       body: data.body,
       data: { url: data.url, messageId: data.messageId },
+      image: data.image || undefined,
+      tag: data.tag || undefined,
+      renotify: !!data.tag,
       icon: "/icon.png",
       badge: "/icon.png",
     })

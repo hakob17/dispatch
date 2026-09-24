@@ -1,16 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 import { db } from "@/lib/db";
+import { groupSchema } from "@/lib/subscriptions";
 
+/** Topics and newsletters, with explicit subscribe / opt-out counts. */
 export async function GET() {
-  const groups = await db.subscriptionGroup.findMany({
-    orderBy: { createdAt: "asc" },
-    include: { _count: { select: { states: { where: { subscribed: false } }, campaigns: true } } },
-  });
-  return NextResponse.json(groups);
+  const [groups, counts] = await Promise.all([
+    db.subscriptionGroup.findMany({
+      orderBy: [{ optIn: "desc" }, { createdAt: "asc" }],
+      include: { _count: { select: { campaigns: true } } },
+    }),
+    db.subscriptionState.groupBy({ by: ["groupId", "subscribed"], _count: { _all: true } }),
+  ]);
+  const n = (groupId: string, subscribed: boolean) =>
+    counts.find((c) => c.groupId === groupId && c.subscribed === subscribed)?._count._all ?? 0;
+  return NextResponse.json(
+    groups.map((g) => ({
+      ...g,
+      kind: g.optIn ? "newsletter" : "topic",
+      subscribers: n(g.id, true),
+      optedOut: n(g.id, false),
+    }))
+  );
 }
-
-const groupSchema = z.object({ name: z.string().min(1), description: z.string().optional() });
 
 export async function POST(req: NextRequest) {
   const body = groupSchema.safeParse(await req.json());
@@ -19,6 +30,6 @@ export async function POST(req: NextRequest) {
     const group = await db.subscriptionGroup.create({ data: body.data });
     return NextResponse.json(group, { status: 201 });
   } catch {
-    return NextResponse.json({ error: "name already exists" }, { status: 409 });
+    return NextResponse.json({ error: "name or slug already exists" }, { status: 409 });
   }
 }

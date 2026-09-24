@@ -5,6 +5,8 @@ import { db } from "@/lib/db";
 const contactSchema = z.object({
   email: z.string().email().nullable().optional(),
   phone: z.string().nullable().optional(),
+  language: z.string().max(35).nullable().optional(),
+  externalId: z.string().max(255).nullable().optional(),
   firstName: z.string().nullable().optional(),
   lastName: z.string().nullable().optional(),
   attributes: z.record(z.string(), z.unknown()).optional(),

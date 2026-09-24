@@ -3,29 +3,29 @@ import type { ChannelAdapter } from "./types";
 import { sesAdapter } from "./email/ses";
 import { webPushAdapter } from "./push/webPush";
 import { fcmAdapter } from "./push/fcm";
+import { apnsAdapter } from "./push/apns";
+import { contentCardAdapter, inAppAdapter } from "./inApp";
 import { webhookAdapter } from "./webhook";
-
-/** Stub adapter for channels that need a paid provider account (Twilio etc.). */
-function stub(channel: Channel, hint: string): ChannelAdapter {
-  return {
-    channel,
-    configHint: hint,
-    isConfigured: async () => false,
-    send: async () => ({ ok: false, error: `${channel} not configured`, permanent: true }),
-  };
-}
+import { smsAdapter, whatsappAdapter } from "./sms/twilio";
+import { mockAdapter, mockEnabled } from "./mock";
 
 const adapters: Record<Channel, ChannelAdapter> = {
   EMAIL: sesAdapter,
   WEB_PUSH: webPushAdapter,
   FCM: fcmAdapter,
-  APNS: stub("APNS", "Direct APNs requires an Apple Developer account — use FCM for iOS instead"),
+  APNS: apnsAdapter,
   WEBHOOK: webhookAdapter,
-  SMS: stub("SMS", "SMS requires a Twilio (or similar) account — not configured"),
-  WHATSAPP: stub("WHATSAPP", "WhatsApp requires a Meta Business + Twilio account — not configured"),
+  IN_APP: inAppAdapter,
+  CONTENT_CARD: contentCardAdapter,
+  SMS: smsAdapter,
+  WHATSAPP: whatsappAdapter,
 };
 
+/** Channels the mock provider stands in for (PUSH_PROVIDER_MODE=mock: load tests, demos, CI). */
+const MOCKABLE: Channel[] = ["FCM", "APNS", "WEB_PUSH", "SMS", "WHATSAPP"];
+
 export function getAdapter(channel: Channel): ChannelAdapter {
+  if (MOCKABLE.includes(channel) && mockEnabled()) return mockAdapter(adapters[channel]);
   return adapters[channel];
 }
 
@@ -35,6 +35,8 @@ export const CHANNEL_LABELS: Record<Channel, string> = {
   FCM: "Mobile Push (FCM)",
   APNS: "iOS Push (APNs)",
   WEBHOOK: "Webhook",
+  IN_APP: "In-app / message centre",
+  CONTENT_CARD: "Content cards",
   SMS: "SMS",
   WHATSAPP: "WhatsApp",
 };

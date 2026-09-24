@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
-import { db } from "@/lib/db";
+import { db, utcTs } from "@/lib/db";
 
 type DayRow = { day: Date; count: bigint };
 
@@ -9,7 +9,7 @@ async function dailyCounts(table: string, column: string, since: Date): Promise<
     Prisma.sql`
       SELECT date_trunc('day', ${Prisma.raw(`"${column}"`)}) AS day, COUNT(*) AS count
       FROM ${Prisma.raw(`"${table}"`)}
-      WHERE ${Prisma.raw(`"${column}"`)} >= ${since}
+      WHERE ${Prisma.raw(`"${column}"`)} >= ${utcTs(since)}
       GROUP BY 1 ORDER BY 1`
   );
   return new Map(rows.map((r) => [r.day.toISOString().slice(0, 10), Number(r.count)]));

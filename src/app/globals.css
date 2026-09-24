@@ -1,4 +1,5 @@
-@import "tailwindcss";
+/* Scan only the web app: packages/ and examples/ hold native SDK + app build output */
+@import "tailwindcss" source("../");
 
 :root {
   /* Engagement console — warm editorial-industrial */
@@ -7,17 +8,17 @@
   --paper-sunken: #f1ece3;
   --ink: #17130e;
   --ink-soft: #5c5548;
-  --ink-faint: #948b7a;
+  --ink-faint: #6f6656; /* ≥4.5:1 on every surface (WCAG 1.4.3) */
   --line: #e3dcce;
   --line-strong: #c9bfa9;
-  --accent: #e8482b; /* vermillion */
-  --accent-deep: #b8300f;
+  --accent: #bf3218; /* vermillion, darkened for text contrast (WCAG 1.4.3) */
+  --accent-deep: #962510;
   --accent-wash: #fbe9e4;
   --teal: #0f766e;
   --teal-wash: #e4f2f0;
-  --amber: #b45309;
+  --amber: #a14a08;
   --amber-wash: #fdf1e0;
-  --good: #15803d;
+  --good: #12692f;
   --good-wash: #e6f4ea;
 }
 
@@ -90,4 +91,18 @@ h1, h2, h3, .font-display {
 
 input, textarea, select {
   background: var(--paper-raised);
+}
+
+/* Larger, on-brand checkboxes and radios: easier targets (WCAG 2.5.8) */
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--accent);
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+/* Visible keyboard focus everywhere (WCAG 2.4.7) */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }

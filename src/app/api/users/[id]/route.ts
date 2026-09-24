@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession, hashPassword } from "@/lib/auth";
+import { forgetSessionCache } from "@/lib/sessionCheck";
 
 type Params = { params: Promise<{ id: string }> };
 
-/** PATCH { role?, password?, name? } — admin-only (middleware). */
+/** PATCH { role?, password?, name?, resetMfa? } — admin-only (proxy). resetMfa helps a user who lost their device. */
 export async function PATCH(req: NextRequest, { params }: Params) {
   const { id } = await params;
   const body = await req.json();
@@ -24,9 +25,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       role: body.role ?? undefined,
       name: body.name ?? undefined,
       passwordHash: body.password ? hashPassword(body.password) : undefined,
+      ...(body.resetMfa ? { mfaEnabled: false, mfaSecret: null, mfaRecoveryCodes: [], mfaLastStep: null } : {}),
+      // A new password or 2FA reset signs the user out everywhere; a role change re-checks on next request
+      ...(body.password || body.resetMfa ? { sessionVersion: { increment: 1 } } : {}),
     },
-    select: { id: true, email: true, name: true, role: true },
+    select: { id: true, email: true, name: true, role: true, mfaEnabled: true },
   });
+  forgetSessionCache(id);
   return NextResponse.json(user);
 }
 
@@ -42,5 +47,6 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     if (admins <= 1) return NextResponse.json({ error: "cannot delete the last admin" }, { status: 400 });
   }
   await db.user.delete({ where: { id } });
+  forgetSessionCache(id);
   return NextResponse.json({ ok: true });
 }

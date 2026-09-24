@@ -38,8 +38,20 @@ export async function getVapidKeys(): Promise<{
   };
 }
 
-/** FCM service account: file path env var wins over DB-stored JSON. */
+/**
+ * FCM service account. Order: FCM_SERVICE_ACCOUNT_JSON (e.g. injected from AWS
+ * Secrets Manager into the ECS task), FCM_SERVICE_ACCOUNT_PATH, then the
+ * DB-stored JSON uploaded on the Settings page.
+ */
 export async function getFcmServiceAccount(): Promise<Record<string, unknown> | null> {
+  if (process.env.FCM_SERVICE_ACCOUNT_JSON) {
+    try {
+      return JSON.parse(process.env.FCM_SERVICE_ACCOUNT_JSON);
+    } catch {
+      console.error("[settings] FCM_SERVICE_ACCOUNT_JSON is not valid JSON");
+      return null;
+    }
+  }
   const path = process.env.FCM_SERVICE_ACCOUNT_PATH;
   if (path) {
     try {
@@ -50,4 +62,27 @@ export async function getFcmServiceAccount(): Promise<Record<string, unknown> | 
     }
   }
   return getSetting<Record<string, unknown>>("fcmServiceAccount");
+}
+
+export interface ApnsConfig {
+  keyId: string;
+  teamId: string;
+  bundleId: string; // apns-topic
+  privateKey: string; // contents of the AuthKey_XXXX.p8 file
+  production: boolean;
+}
+
+/** APNs token-auth config: APNS_* env vars (Secrets Manager) win over the Settings page. */
+export async function getApnsConfig(): Promise<ApnsConfig | null> {
+  if (process.env.APNS_KEY_ID && process.env.APNS_TEAM_ID && process.env.APNS_BUNDLE_ID && process.env.APNS_PRIVATE_KEY) {
+    return {
+      keyId: process.env.APNS_KEY_ID,
+      teamId: process.env.APNS_TEAM_ID,
+      bundleId: process.env.APNS_BUNDLE_ID,
+      privateKey: process.env.APNS_PRIVATE_KEY.replace(/\\n/g, "\n"),
+      production: process.env.APNS_PRODUCTION !== "false",
+    };
+  }
+  const stored = await getSetting<ApnsConfig>("apns");
+  return stored?.keyId && stored.teamId && stored.bundleId && stored.privateKey ? stored : null;
 }

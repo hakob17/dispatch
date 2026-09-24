@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { suppress } from "@/lib/suppression";
+import { isSnsUrl, verifySnsMessage, type SnsMessage } from "@/lib/snsVerify";
+import { emitEvents, makeEvent, messageEventData } from "@/lib/webhooks/events";
 
 /**
  * SNS endpoint for SES event notifications (Bounce / Complaint / Delivery).
@@ -14,8 +16,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "bad body" }, { status: 400 });
   }
 
+  const verified = await verifySnsMessage(sns as unknown as SnsMessage);
+  if (!verified.ok) {
+    console.warn(`[ses-webhook] rejected: ${verified.reason}`);
+    return NextResponse.json({ error: "invalid SNS signature" }, { status: 403 });
+  }
+
   // SNS subscription handshake
   if (sns.Type === "SubscriptionConfirmation" && typeof sns.SubscribeURL === "string") {
+    if (!isSnsUrl(sns.SubscribeURL)) return NextResponse.json({ error: "bad SubscribeURL" }, { status: 400 });
     await fetch(sns.SubscribeURL);
     console.log("[ses-webhook] SNS subscription confirmed");
     return NextResponse.json({ ok: true });
@@ -37,8 +46,9 @@ export async function POST(req: NextRequest) {
   const mail = event.mail as { messageId?: string } | undefined;
   const providerMessageId = mail?.messageId;
   const message = providerMessageId
-    ? await db.message.findUnique({ where: { providerMessageId } })
+    ? await db.message.findUnique({ where: { providerMessageId }, include: { contact: { select: { externalId: true } } } })
     : null;
+  const data = message ? messageEventData({ ...message, externalId: message.contact.externalId }) : null;
 
   switch (eventType) {
     case "Bounce": {
@@ -55,6 +65,7 @@ export async function POST(req: NextRequest) {
         await db.messageEvent.create({
           data: { messageId: message.id, type: "BOUNCE", meta: { bounceType: bounce?.bounceType } },
         });
+        await emitEvents([makeEvent("message.bounced", { ...data, bounceType: bounce?.bounceType })]);
       }
       break;
     }
@@ -75,6 +86,7 @@ export async function POST(req: NextRequest) {
           data: { status: "DELIVERED", deliveredAt: new Date() },
         });
         await db.messageEvent.create({ data: { messageId: message.id, type: "DELIVERY" } });
+        await emitEvents([makeEvent("message.delivered", data!)]);
       }
       break;
     }

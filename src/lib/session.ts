@@ -2,21 +2,20 @@
  * Signed session tokens. Edge-safe: uses only Web Crypto (crypto.subtle),
  * so it runs in Next.js middleware as well as Node route handlers.
  */
+import { appSecret as secret } from "./secret";
 
 export interface SessionPayload {
   uid: string;
   email: string;
   role: "ADMIN" | "USER";
+  /** user's sessionVersion when issued; a bump revokes the session */
+  sv?: number;
   exp: number; // unix seconds
 }
 
 export const SESSION_COOKIE = "dispatch_session";
 
 const encoder = new TextEncoder();
-
-function secret(): string {
-  return process.env.TRACKING_SECRET || "insecure-dev-secret";
-}
 
 function b64urlEncode(bytes: Uint8Array): string {
   let bin = "";

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Declared so notifications can show on Android 13+; asking for it at runtime stays with your app. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- No FirebaseMessagingService is registered here: your app owns that. Either declare
+         com.dispatch.sdk.DispatchMessagingService in your manifest, or call
+         Dispatch.handleRemoteMessage(...) from your own service. -->
+</manifest>

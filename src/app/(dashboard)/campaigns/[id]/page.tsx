@@ -20,6 +20,9 @@ interface Detail {
     scheduledAt: string | null;
     launchedAt: string | null;
     segment: { name: string } | null;
+    subscriptionGroup: { name: string; optIn: boolean } | null;
+    allPushPlatforms: boolean;
+    sendTimeOptimization: boolean;
     variants: { id: string; name: string; weight: number; template: PreviewableTemplate & { name: string } }[];
   };
   stats: {
@@ -87,7 +90,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   return (
     <div>
       <PageHeader
-        kicker={`Campaign · ${campaign.channel}`}
+        kicker={`Campaign · ${campaign.allPushPlatforms ? "all phones" : campaign.channel}${campaign.sendTimeOptimization ? " · best time per reader" : ""}`}
         title={campaign.name}
         actions={
           <>
@@ -106,7 +109,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
       />
 
       <div className="grid grid-cols-5 gap-4 mb-4">
-        <div className="rise rise-1"><Stat label="Audience" value={total.toLocaleString()} sub={campaign.segment?.name ?? "everyone"} /></div>
+        <div className="rise rise-1"><Stat label="Audience" value={total.toLocaleString()} sub={[campaign.segment?.name ?? "everyone", campaign.subscriptionGroup && `${campaign.subscriptionGroup.name} ${campaign.subscriptionGroup.optIn ? "subscribers" : "(topic)"}`].filter(Boolean).join(" · ")} /></div>
         <div className="rise rise-1"><Stat label="Sent" value={sent.toLocaleString()} accent /></div>
         <div className="rise rise-2"><Stat label="Delivered" value={(s.DELIVERED ?? 0).toLocaleString()} sub={pct(s.DELIVERED ?? 0, sent)} /></div>
         <div className="rise rise-3"><Stat label="Opened" value={stats.opened.toLocaleString()} sub={pct(stats.opened, sent)} /></div>

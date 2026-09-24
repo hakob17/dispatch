@@ -1,20 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 import { db } from "@/lib/db";
-
-const journeySchema = z.object({
-  name: z.string().min(1),
-  segmentId: z.string().nullable().optional(),
-  steps: z
-    .array(
-      z.object({
-        delayMinutes: z.number().int().min(0),
-        channel: z.enum(["EMAIL", "WEB_PUSH", "FCM", "APNS", "WEBHOOK", "SMS", "WHATSAPP"]),
-        templateId: z.string(),
-      })
-    )
-    .min(1),
-});
+import { journeySchema, journeyStepsFrom } from "@/lib/journeys";
 
 export async function GET() {
   const journeys = await db.journey.findMany({
@@ -29,13 +15,19 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const body = journeySchema.safeParse(await req.json());
-  if (!body.success) return NextResponse.json({ error: body.error.flatten() }, { status: 400 });
-  const { steps, ...data } = body.data;
+  const parsed = journeySchema.safeParse(await req.json());
+  if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  const graph = await journeyStepsFrom(parsed.data);
+  if ("error" in graph) return graph.error;
+  const { name, segmentId, triggerEvent, exitEvent } = parsed.data;
   const journey = await db.journey.create({
     data: {
-      ...data,
-      steps: { create: steps.map((s, i) => ({ ...s, order: i })) },
+      name,
+      segmentId: segmentId || null,
+      triggerEvent: triggerEvent || null,
+      exitEvent: exitEvent || null,
+      entryKey: graph.entryKey,
+      steps: { createMany: { data: graph.steps } },
     },
     include: { steps: true },
   });

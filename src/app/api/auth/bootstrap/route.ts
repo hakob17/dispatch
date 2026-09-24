@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { anyUsersExist, hashPassword } from "@/lib/auth";
-import { createSessionToken, SESSION_COOKIE } from "@/lib/session";
+import { finishLogin } from "@/lib/loginFlow";
 
 /** First-run setup: create the initial admin account. Only works while no users exist. */
 export async function GET() {
@@ -24,14 +24,5 @@ export async function POST(req: NextRequest) {
       role: "ADMIN",
     },
   });
-  const token = await createSessionToken({ uid: user.id, email: user.email, role: user.role });
-  const res = NextResponse.json({ ok: true });
-  res.cookies.set(SESSION_COOKIE, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 7 * 86400,
-  });
-  return res;
+  return finishLogin(req, user, "bootstrap");
 }

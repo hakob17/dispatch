@@ -3,9 +3,11 @@ import type { Contact } from "@prisma/client";
 export type TemplateVars = Record<string, string>;
 
 /** Flatten a contact into {{var}} substitution values. attributes.x is addressable as both `x` and `attributes.x`. */
-export function contactVars(contact: Pick<Contact, "email" | "firstName" | "lastName" | "attributes">): TemplateVars {
+export function contactVars(contact: Pick<Contact, "email" | "firstName" | "lastName" | "attributes"> & Partial<Pick<Contact, "externalId" | "language">>): TemplateVars {
   const vars: TemplateVars = {
     email: contact.email ?? "",
+    externalId: contact.externalId ?? "",
+    language: contact.language ?? "",
     firstName: contact.firstName ?? "",
     lastName: contact.lastName ?? "",
   };

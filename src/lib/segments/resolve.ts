@@ -4,13 +4,13 @@ import { db } from "../db";
 export type FilterOp = "eq" | "neq" | "contains" | "exists" | "gt" | "lt";
 
 export interface SegmentFilter {
-  /** "email" | "firstName" | "lastName" | "phone" | "attributes.<key>" | "event.<name>" (event count > 0) */
+  /** "email" | "firstName" | "lastName" | "phone" | "language" | "externalId" | "attributes.<key>" | "event.<name>" (event count > 0) */
   field: string;
   op: FilterOp;
   value?: string | number | boolean;
 }
 
-const STANDARD_FIELDS = new Set(["email", "firstName", "lastName", "phone"]);
+const STANDARD_FIELDS = new Set(["email", "firstName", "lastName", "phone", "language", "externalId"]);
 
 /**
  * Convert filter rows (AND-combined) to a Prisma where clause.
@@ -21,7 +21,7 @@ export function filtersToWhere(filters: SegmentFilter[]): Prisma.ContactWhereInp
 
   for (const f of filters) {
     if (STANDARD_FIELDS.has(f.field)) {
-      const field = f.field as "email" | "firstName" | "lastName" | "phone";
+      const field = f.field as "email" | "firstName" | "lastName" | "phone" | "language" | "externalId";
       switch (f.op) {
         case "eq": and.push({ [field]: { equals: String(f.value ?? ""), mode: "insensitive" } }); break;
         case "neq": and.push({ NOT: { [field]: { equals: String(f.value ?? ""), mode: "insensitive" } } }); break;
@@ -66,11 +66,10 @@ export async function* iterateSegmentContactIds(
   let cursor: string | undefined;
   for (;;) {
     const page = await db.contact.findMany({
-      where,
+      where: cursor ? { AND: [where, { id: { gt: cursor } }] } : where,
       select: { id: true },
       orderBy: { id: "asc" },
       take: pageSize,
-      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     });
     if (!page.length) return;
     yield page.map((c) => c.id);

@@ -25,6 +25,9 @@ export const webPushAdapter: ChannelAdapter = {
           body: msg.pushBody || "",
           url: msg.pushUrl || "/",
           messageId: msg.messageId,
+          image: msg.push?.imageUrl,
+          tag: msg.push?.collapseKey,
+          data: msg.push?.data,
         }),
         {
           vapidDetails: {
@@ -32,7 +35,12 @@ export const webPushAdapter: ChannelAdapter = {
             publicKey: keys.publicKey,
             privateKey: keys.privateKey,
           },
-          TTL: 24 * 3600,
+          TTL: msg.push?.ttlSeconds ?? 24 * 3600,
+          urgency: msg.push?.priority === "NORMAL" ? "normal" : "high",
+          // Push-service-level collapse: Topic must be ≤32 URL-safe base64 chars
+          ...(msg.push?.collapseKey
+            ? { topic: Buffer.from(msg.push.collapseKey).toString("base64url").slice(0, 32) }
+            : {}),
         }
       );
       // Web push has no delivery receipts — a 201 from the push service is as

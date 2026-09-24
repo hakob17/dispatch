@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { normalizeLanguage } from "@/lib/localize";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -29,6 +30,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     data: {
       email: body.email ?? undefined,
       phone: body.phone ?? undefined,
+      language: body.language === undefined ? undefined : normalizeLanguage(body.language),
       firstName: body.firstName ?? undefined,
       lastName: body.lastName ?? undefined,
       attributes: body.attributes ?? undefined,

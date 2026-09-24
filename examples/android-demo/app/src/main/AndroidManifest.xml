@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Cleartext only because the demo talks to http://10.0.2.2:3000 (the host's dev server) -->
+    <application
+        android:name=".DemoApp"
+        android:label="Dispatch News"
+        android:icon="@drawable/ic_launcher"
+        android:theme="@android:style/Theme.Material.Light.NoActionBar"
+        android:usesCleartextTraffic="true">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="dispatchdemo" android:host="article" />
+            </intent-filter>
+        </activity>
+
+        <!--
+          Emulator stand-in for FirebaseMessagingService: the Dispatch worker (DEMO_DEVICE_RELAY=true)
+          delivers the exact FCM data payload with `adb shell am broadcast -a com.dispatch.demo.PUSH`.
+          A production app declares com.dispatch.sdk.DispatchMessagingService instead.
+        -->
+        <receiver android:name=".DemoPushReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="com.dispatch.demo.PUSH" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

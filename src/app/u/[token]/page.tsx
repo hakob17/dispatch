@@ -65,7 +65,7 @@ export default function PreferenceCenterPage({ params }: { params: Promise<{ tok
               <label key={g.id} className={`flex items-start gap-3 p-3 border cursor-pointer ${prefs.globallyUnsubscribed ? "opacity-40" : ""} ${g.subscribed ? "border-line-strong" : "border-line bg-paper-sunken/40"}`}>
                 <input
                   type="checkbox"
-                  className="mt-1 accent-[#e8482b]"
+                  className="mt-1 accent-[var(--accent)]"
                   disabled={prefs.globallyUnsubscribed}
                   checked={g.subscribed}
                   onChange={(e) =>
@@ -87,7 +87,7 @@ export default function PreferenceCenterPage({ params }: { params: Promise<{ tok
         <label className="flex items-center gap-3 p-3 border border-accent/40 bg-accent-wash/40 cursor-pointer mb-6">
           <input
             type="checkbox"
-            className="accent-[#e8482b]"
+            className="accent-[var(--accent)]"
             checked={prefs.globallyUnsubscribed}
             onChange={(e) => setPrefs({ ...prefs, globallyUnsubscribed: e.target.checked })}
           />

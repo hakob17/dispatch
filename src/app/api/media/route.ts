@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { nanoid } from "nanoid";
 import { db } from "@/lib/db";
+import { putMedia } from "@/lib/mediaStorage";
 
-const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads");
-const ALLOWED = new Set(["image/png", "image/jpeg", "image/gif", "image/webp", "image/svg+xml"]);
+// No SVG: it can carry script, and APNs/FCM rich push doesn't render it anyway
+const ALLOWED = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
 const MAX_BYTES = 5 * 1024 * 1024;
 
 export async function GET() {
@@ -23,11 +23,10 @@ export async function POST(req: NextRequest) {
 
   const ext = path.extname(file.name) || `.${file.type.split("/")[1]}`;
   const filename = `${nanoid(10)}${ext}`;
-  await mkdir(UPLOAD_DIR, { recursive: true });
-  await writeFile(path.join(UPLOAD_DIR, filename), Buffer.from(await file.arrayBuffer()));
+  const url = await putMedia(filename, Buffer.from(await file.arrayBuffer()), file.type);
 
   const asset = await db.mediaAsset.create({
-    data: { filename: file.name, path: `/uploads/${filename}`, mime: file.type, size: file.size },
+    data: { filename: file.name, path: url, mime: file.type, size: file.size },
   });
   return NextResponse.json(asset, { status: 201 });
 }

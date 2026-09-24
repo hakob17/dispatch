@@ -1,6 +1,5 @@
 import { createHmac, timingSafeEqual } from "crypto";
-
-const secret = () => process.env.TRACKING_SECRET || "insecure-dev-secret";
+import { appSecret as secret } from "../secret";
 
 export function sign(payload: string): string {
   return createHmac("sha256", secret()).update(payload).digest("base64url").slice(0, 24);

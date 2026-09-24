@@ -9,8 +9,21 @@ interface JourneyRow {
   name: string;
   status: string;
   segment: { name: string } | null;
-  steps: { channel: string; delayMinutes: number; template: { name: string } }[];
+  entryKey: string | null;
+  triggerEvent: string | null;
+  steps: { type: string; channel: string | null; delayMinutes: number; template: { name: string } | null }[];
   _count: { runs: number };
+}
+
+/** Branching journeys: "3 messages · 2 splits · waits for events". */
+function summarize(steps: JourneyRow["steps"]): string {
+  const n = (t: string) => steps.filter((s) => s.type === t).length;
+  const parts = [
+    `${n("MESSAGE")} message${n("MESSAGE") === 1 ? "" : "s"}`,
+    n("CONDITION") + n("RANDOM") ? `${n("CONDITION") + n("RANDOM")} split${n("CONDITION") + n("RANDOM") === 1 ? "" : "s"}` : "",
+    n("WAIT_EVENT") ? "waits for events" : "",
+  ];
+  return parts.filter(Boolean).join(" · ");
 }
 
 export default function JourneysPage() {
@@ -26,7 +39,7 @@ export default function JourneysPage() {
       {data && data.length === 0 ? (
         <EmptyState
           title="No journeys"
-          hint="A journey enrolls a segment and walks each contact through a timed sequence of messages — like a tiny Braze Canvas."
+          hint="A journey walks each reader through messages, delays, condition and A/B splits and waits for their actions — like a Braze Canvas."
           action={<Button href="/journeys/new">Create journey</Button>}
         />
       ) : (
@@ -37,9 +50,13 @@ export default function JourneysPage() {
                 <td className="px-4 py-3">
                   <Link href={`/journeys/${j.id}`} className="font-medium hover:text-accent">{j.name}</Link>
                 </td>
-                <td className="px-4 py-3 text-sm text-ink-soft">{j.segment?.name ?? "Everyone"}</td>
+                <td className="px-4 py-3 text-sm text-ink-soft">
+                  {j.triggerEvent ? <span className="figure">on {j.triggerEvent}</span> : j.segment?.name ?? "Everyone"}
+                </td>
                 <td className="px-4 py-3 figure text-xs text-ink-soft">
-                  {j.steps.map((s, i) => `${i > 0 || s.delayMinutes > 0 ? `⏱${s.delayMinutes}m → ` : ""}${s.channel}`).join(" → ")}
+                  {j.entryKey
+                    ? summarize(j.steps)
+                    : j.steps.map((s, i) => `${i > 0 || s.delayMinutes > 0 ? `⏱${s.delayMinutes}m → ` : ""}${s.channel}`).join(" → ")}
                 </td>
                 <td className="px-4 py-3 figure">{j._count.runs.toLocaleString()}</td>
                 <td className="px-4 py-3"><Badge>{j.status}</Badge></td>

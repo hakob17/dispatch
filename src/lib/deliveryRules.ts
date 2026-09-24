@@ -1,5 +1,6 @@
 import { db } from "./db";
 import { getSetting } from "./settings";
+import { isSubscribed } from "./subscriptions";
 
 export interface DeliveryRules {
   maxPerDay: number | null; // max messages per contact per 24h
@@ -58,11 +59,13 @@ export async function exceedsFrequencyCap(rules: DeliveryRules, contactId: strin
   return false;
 }
 
-/** True when the contact opted out of the campaign's subscription group. */
+/** True when the contact must not get messages for this group (opted out of a topic, or never joined a newsletter). */
 export async function isUnsubscribedFromGroup(groupId: string | null | undefined, contactId: string): Promise<boolean> {
   if (!groupId) return false;
-  const state = await db.subscriptionState.findUnique({
-    where: { groupId_contactId: { groupId, contactId } },
-  });
-  return state ? !state.subscribed : false; // no state row = subscribed by default
+  const [group, state] = await Promise.all([
+    db.subscriptionGroup.findUnique({ where: { id: groupId }, select: { optIn: true } }),
+    db.subscriptionState.findUnique({ where: { groupId_contactId: { groupId, contactId } } }),
+  ]);
+  if (!group) return false;
+  return !isSubscribed(group, state?.subscribed); // no row: topics yes, newsletters no
 }

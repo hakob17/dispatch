@@ -9,6 +9,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     where: { id },
     include: {
       segment: { select: { id: true, name: true } },
+      subscriptionGroup: { select: { id: true, name: true, optIn: true } },
       variants: { include: { template: true } },
     },
   });

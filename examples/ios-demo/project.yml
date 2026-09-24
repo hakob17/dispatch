@@ -1,0 +1,110 @@
+name: DispatchDemo
+options:
+  bundleIdPrefix: com.dispatch
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+packages:
+  DispatchSDK:
+    path: ../../packages/ios-sdk
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Automatic
+    CODE_SIGN_IDENTITY: "-"
+targets:
+  DispatchDemo:
+    type: application
+    platform: iOS
+    sources:
+      - DispatchDemo
+      - Shared
+    dependencies:
+      - package: DispatchSDK
+        product: DispatchSDK
+      - target: DispatchDemoNotificationService
+      - target: DispatchDemoWidgets
+    info:
+      path: DispatchDemo/Info.plist
+      properties:
+        CFBundleDisplayName: Dispatch News
+        CFBundleShortVersionString: "1.0"
+        UILaunchScreen: {}
+        NSSupportsLiveActivities: true
+        UIBackgroundModes: [remote-notification]
+        CFBundleURLTypes:
+          - CFBundleURLName: com.dispatch.demo
+            CFBundleURLSchemes: [dispatchdemo]
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+    entitlements:
+      path: DispatchDemo/DispatchDemo.entitlements
+      properties:
+        aps-environment: development
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.dispatch.demo
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+    preBuildScripts:
+      - name: Copy demo config
+        script: |
+          # npm run demo -- setup writes examples/demo-config.json (server URL + SDK key)
+          SRC="${PROJECT_DIR}/../demo-config.json"
+          DST="${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/demo-config.json"
+          mkdir -p "$(dirname "$DST")"
+          if [ -f "$SRC" ]; then cp "$SRC" "$DST"; else echo "{}" > "$DST"; fi
+        inputFiles: ["$(PROJECT_DIR)/../demo-config.json"]
+        outputFiles: ["$(BUILT_PRODUCTS_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/demo-config.json"]
+        basedOnDependencyAnalysis: false
+  DispatchDemoNotificationService:
+    type: app-extension
+    platform: iOS
+    sources: [NotificationService]
+    dependencies:
+      - package: DispatchSDK
+        product: DispatchNotificationService
+    info:
+      path: NotificationService/Info.plist
+      properties:
+        CFBundleDisplayName: Dispatch rich push
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.usernotifications.service
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).NotificationService
+        DispatchBaseURL: http://localhost:3000
+        DispatchAPIKey: ""
+    postBuildScripts:
+      - name: Inject demo SDK key
+        script: |
+          # The extension reports delivery receipts with the (public) SDK key from examples/demo-config.json
+          CFG="${PROJECT_DIR}/../demo-config.json"
+          PLIST="${TARGET_BUILD_DIR}/${INFOPLIST_PATH}"
+          if [ -f "$CFG" ]; then
+            KEY=$(/usr/bin/python3 -c "import json;print(json.load(open('$CFG')).get('sdkKey',''))")
+            URL=$(/usr/bin/python3 -c "import json;print(json.load(open('$CFG')).get('baseUrl',''))")
+            /usr/libexec/PlistBuddy -c "Set :DispatchAPIKey $KEY" -c "Set :DispatchBaseURL $URL" "$PLIST"
+          fi
+        basedOnDependencyAnalysis: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.dispatch.demo.NotificationService
+  DispatchDemoWidgets:
+    type: app-extension
+    platform: iOS
+    sources: [Widgets, Shared]
+    info:
+      path: Widgets/Info.plist
+      properties:
+        CFBundleDisplayName: Dispatch live
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.dispatch.demo.Widgets
+schemes:
+  DispatchDemo:
+    build:
+      targets:
+        DispatchDemo: all
+    run:
+      config: Debug

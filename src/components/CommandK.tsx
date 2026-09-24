@@ -27,11 +27,22 @@ export default function CommandK() {
   const [sel, setSel] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Reset the palette as it opens, in the event handler rather than an effect
+  const toggle = () =>
+    setOpen((o) => {
+      if (!o) {
+        setQ("");
+        setResults([]);
+        setSel(0);
+      }
+      return !o;
+    });
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        setOpen((o) => !o);
+        toggle();
       }
       if (e.key === "Escape") setOpen(false);
     };
@@ -40,19 +51,14 @@ export default function CommandK() {
   }, []);
 
   useEffect(() => {
-    if (open) {
-      setQ("");
-      setResults([]);
-      setSel(0);
-      setTimeout(() => inputRef.current?.focus(), 30);
-    }
+    if (open) setTimeout(() => inputRef.current?.focus(), 30);
   }, [open]);
 
+  const active = open && q.trim().length >= 2;
+  const shown = active ? results : [];
+
   useEffect(() => {
-    if (!open || q.trim().length < 2) {
-      setResults([]);
-      return;
-    }
+    if (!active) return;
     const t = setTimeout(async () => {
       const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
       if (res.ok) {
@@ -62,7 +68,7 @@ export default function CommandK() {
       }
     }, 200);
     return () => clearTimeout(t);
-  }, [q, open]);
+  }, [q, active]);
 
   const go = useCallback(
     (r: Result) => {
@@ -84,16 +90,16 @@ export default function CommandK() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "ArrowDown") { e.preventDefault(); setSel((s) => Math.min(results.length - 1, s + 1)); }
+            if (e.key === "ArrowDown") { e.preventDefault(); setSel((s) => Math.min(shown.length - 1, s + 1)); }
             if (e.key === "ArrowUp") { e.preventDefault(); setSel((s) => Math.max(0, s - 1)); }
-            if (e.key === "Enter" && results[sel]) go(results[sel]);
+            if (e.key === "Enter" && shown[sel]) go(shown[sel]);
           }}
         />
         <div className="max-h-80 overflow-y-auto">
-          {q.trim().length >= 2 && results.length === 0 && (
+          {q.trim().length >= 2 && shown.length === 0 && (
             <div className="px-4 py-6 text-sm text-ink-faint text-center">No matches.</div>
           )}
-          {results.map((r, i) => (
+          {shown.map((r, i) => (
             <button
               key={`${r.type}-${r.id}`}
               onClick={() => go(r)}

@@ -13,6 +13,8 @@ enum Channel {
   FCM
   APNS
   WEBHOOK
+  IN_APP // in-app message / message centre (pulled by the SDK)
+  CONTENT_CARD // persistent card in the app's card feed (pulled by the SDK)
   SMS
   WHATSAPP
 }
@@ -53,6 +55,7 @@ enum SuppressionReason {
   BOUNCE
   COMPLAINT
   MANUAL
+  STOP // SMS / WhatsApp opt-out keyword
 }
 
 enum JobStatus {
@@ -71,6 +74,11 @@ enum EventType {
   UNSUBSCRIBE
 }
 
+enum ApiKeyScope {
+  SERVER // full REST API: sends, bulk user updates, exports
+  SDK // client-embeddable: identify, events, push token registration only
+}
+
 enum JourneyStatus {
   DRAFT
   ACTIVE
@@ -85,28 +93,41 @@ enum UserRole {
 
 // Dashboard login accounts (team members), not contacts
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  name         String?
-  passwordHash String
-  role         UserRole @default(USER)
-  createdAt    DateTime @default(now())
+  id               String    @id @default(cuid())
+  email            String    @unique
+  name             String?
+  passwordHash     String
+  role             UserRole  @default(USER)
+  createdAt        DateTime  @default(now())
+  lastLoginAt      DateTime?
+  sessionVersion   Int       @default(0) // bump to revoke every session this user has
+  // TOTP two-factor: secret is AES-256-GCM encrypted; lastStep blocks code replay
+  mfaEnabled       Boolean   @default(false)
+  mfaSecret        String?
+  mfaLastStep      Int?
+  mfaRecoveryCodes Json? // sha256 hashes of unused one-time recovery codes
+  // OIDC single sign-on: the IdP's stable subject id
+  ssoSubject       String?   @unique
 }
 
 model Contact {
-  id            String             @id @default(cuid())
-  email         String?            @unique
-  phone         String?
-  firstName     String?
-  lastName      String?
-  attributes    Json               @default("{}")
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
-  subscriptions PushSubscription[]
-  messages      Message[]
-  events        ContactEvent[]
-  journeyRuns   JourneyRun[]
+  id                 String              @id @default(cuid())
+  externalId         String?             @unique // your system's user id (set on login)
+  anonymousId        String?             @unique // device-generated id for users who never signed in
+  email              String?             @unique
+  language           String? // BCP-47 (e.g. "de", "pt-BR"): picks template translations
+  phone              String?
+  firstName          String?
+  lastName           String?
+  attributes         Json                @default("{}")
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  subscriptions      PushSubscription[]
+  messages           Message[]
+  events             ContactEvent[]
+  journeyRuns        JourneyRun[]
   subscriptionStates SubscriptionState[]
+  liveActivityTokens LiveActivityToken[]
 }
 
 // Custom events tracked via /api/track (Braze-style event tracking)
@@ -128,6 +149,9 @@ model PushSubscription {
   channel    Channel // WEB_PUSH | FCM | APNS
   endpoint   String // web-push endpoint URL, or FCM/APNs token
   keys       Json? // web push: { p256dh, auth }
+  platform   String? // ios | android | web (informational; channel decides the provider)
+  deviceId   String? // SDK-reported device identifier
+  appVersion String?
   isActive   Boolean   @default(true)
   createdAt  DateTime  @default(now())
   lastUsedAt DateTime?
@@ -135,6 +159,7 @@ model PushSubscription {
   messages   Message[]
 
   @@unique([channel, endpoint])
+  @@index([contactId, channel, isActive])
 }
 
 model Segment {
@@ -149,43 +174,64 @@ model Segment {
 }
 
 model MessageTemplate {
-  id         String            @id @default(cuid())
-  name       String
-  channel    Channel
-  subject    String? // email
-  htmlBody   String? // email
-  textBody   String? // email plain part; derived from html if blank
-  pushTitle  String? // push
-  pushBody   String? // push
-  pushUrl    String? // push click-through
-  webhookUrl String? // webhook channel: destination URL
-  webhookBody String? // webhook channel: JSON body template
-  tags       Json              @default("[]")
-  createdAt  DateTime          @default(now())
-  updatedAt  DateTime          @updatedAt
-  variants   CampaignVariant[]
-  journeySteps JourneyStep[]
+  id                 String            @id @default(cuid())
+  name               String
+  channel            Channel
+  subject            String? // email
+  htmlBody           String? // email
+  textBody           String? // email plain part; derived from html if blank
+  pushTitle          String? // push
+  pushBody           String? // push
+  pushUrl            String? // push click-through (http(s) URL or custom-scheme deep link)
+  pushImageUrl       String? // rich push image (FCM image / APNs mutable-content)
+  pushPriority       String            @default("HIGH") // HIGH = wake device now (breaking news), NORMAL = battery-friendly
+  pushCollapseKey    String? // same key replaces the previous notification instead of stacking
+  pushTtlSeconds     Int? // expire undelivered notifications after N seconds
+  pushData           Json? // extra key/value pairs delivered to the app
+  inAppLayout        String? // IN_APP: MODAL | BANNER | FULLSCREEN | INBOX (message centre only)
+  inAppButtons       Json? // IN_APP: [{ label, url }] (max 2)
+  inAppExpiresHours  Int? // IN_APP / CONTENT_CARD: disappears after N hours
+  cardStyle          String? // CONTENT_CARD: CLASSIC | CAPTIONED_IMAGE | BANNER
+  cardPinned         Boolean           @default(false) // CONTENT_CARD: stays at the top of the feed
+  cardCategory       String? // CONTENT_CARD: lets apps show separate feeds (e.g. "offers", "live")
+  cardDismissible    Boolean           @default(true) // CONTENT_CARD: reader can swipe it away
+  smsBody            String? // SMS / WhatsApp session message text ({{vars}} allowed)
+  whatsappContentSid String? // WhatsApp: approved Twilio Content template (required outside the 24 h window)
+  whatsappVariables  Json? // WhatsApp: { "1": "{{firstName}}", "2": "{{item.title}}" }
+  translations       Json? // { "<bcp47>": { subject?, htmlBody?, textBody?, pushTitle?, pushBody?, pushUrl?, pushImageUrl? } }
+  webhookUrl         String? // webhook channel: destination URL
+  webhookBody        String? // webhook channel: JSON body template
+  tags               Json              @default("[]")
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  variants           CampaignVariant[]
+  journeySteps       JourneyStep[]
 }
 
 model Campaign {
-  id                    String          @id @default(cuid())
+  id                    String             @id @default(cuid())
   name                  String
   channel               Channel
   segmentId             String?
-  status                CampaignStatus  @default(DRAFT)
-  trigger               CampaignTrigger @default(SCHEDULED)
+  status                CampaignStatus     @default(DRAFT)
+  trigger               CampaignTrigger    @default(SCHEDULED)
   triggerEvent          String? // event name for EVENT trigger
-  recurrence            Recurrence      @default(NONE)
+  recurrence            Recurrence         @default(NONE)
   lastRunAt             DateTime? // start of the current/last recurring run
   conversionEvent       String? // event that counts as a conversion
-  conversionWindowHours Int             @default(72)
-  controlGroupPct       Int             @default(0) // % of audience held out
+  conversionWindowHours Int                @default(72)
+  controlGroupPct       Int                @default(0) // % of audience held out
+  bypassDeliveryRules   Boolean            @default(false) // breaking news: ignore quiet hours + frequency caps
   subscriptionGroupId   String?
-  tags                  Json            @default("[]")
+  /// Push campaigns: reach every device (iOS, Android, web) instead of only `channel`
+  allPushPlatforms      Boolean            @default(false)
+  /// Deliver to each reader at their usual engagement hour (within 24 h of launch)
+  sendTimeOptimization  Boolean            @default(false)
+  tags                  Json               @default("[]")
   scheduledAt           DateTime?
   launchedAt            DateTime?
   completedAt           DateTime?
-  createdAt             DateTime        @default(now())
+  createdAt             DateTime           @default(now())
   segment               Segment?           @relation(fields: [segmentId], references: [id])
   subscriptionGroup     SubscriptionGroup? @relation(fields: [subscriptionGroupId], references: [id])
   variants              CampaignVariant[] // 1 variant = no A/B test; 2+ = split by weight
@@ -221,6 +267,11 @@ model Message {
   openedAt           DateTime?
   clickedAt          DateTime?
   convertedAt        DateTime? // contact performed the campaign's conversionEvent in-window
+  content            Json? // IN_APP: rendered message the SDK fetches
+  expiresAt          DateTime? // IN_APP: hidden from the message centre after this
+  readAt             DateTime? // IN_APP: read in the message centre
+  deletedAt          DateTime? // IN_APP: deleted by the user
+  contentItemId      String? // the article this message is about (feed auto-send / recommendations)
   createdAt          DateTime          @default(now())
   campaign           Campaign?         @relation(fields: [campaignId], references: [id], onDelete: SetNull)
   variant            CampaignVariant?  @relation(fields: [variantId], references: [id], onDelete: SetNull)
@@ -231,6 +282,7 @@ model Message {
 
   @@index([campaignId, status])
   @@index([contactId, createdAt])
+  @@index([contactId, channel, status])
 }
 
 model MessageEvent {
@@ -256,43 +308,86 @@ model Suppression {
 
 // Canvas-lite: a journey = entry segment + ordered steps (delay, then message)
 model Journey {
-  id        String        @id @default(cuid())
-  name      String
-  status    JourneyStatus @default(DRAFT)
-  segmentId String? // entry audience; null = all contacts
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
-  segment   Segment?      @relation(fields: [segmentId], references: [id])
-  steps     JourneyStep[]
-  runs      JourneyRun[]
+  id           String         @id @default(cuid())
+  name         String
+  status       JourneyStatus  @default(DRAFT)
+  segmentId    String? // entry audience; null = all contacts
+  /// Enrol contacts when they perform this event (instead of the whole segment at activation)
+  triggerEvent String?
+  /// Take contacts out of the journey when they perform this event (e.g. "subscribed")
+  exitEvent    String?
+  /// Key of the first node for branching journeys; null = linear steps in `order`
+  entryKey     String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  segment      Segment?       @relation(fields: [segmentId], references: [id])
+  steps        JourneyStep[]
+  runs         JourneyRun[]
+  visits       JourneyVisit[]
 }
 
+/// A journey node. Linear journeys only use MESSAGE steps in `order` (each after `delayMinutes`).
+/// Branching journeys give every node a `key` and wire them with `next`:
+///   MESSAGE    { default }                      send channel/templateId
+///   DELAY      { default }                      config { minutes }
+///   CONDITION  { yes, no }                      config { match: "all"|"any", rules: [...] }
+///   RANDOM     { branches: [key, …] }           config { weights: [50, 50] }
+///   WAIT_EVENT { event, timeout }               config { event, timeoutMinutes }
+///   EXIT       {}
 model JourneyStep {
-  id         String          @id @default(cuid())
-  journeyId  String
-  order      Int
-  delayMinutes Int           @default(0) // wait before this step fires
-  channel    Channel
-  templateId String
-  journey    Journey         @relation(fields: [journeyId], references: [id], onDelete: Cascade)
-  template   MessageTemplate @relation(fields: [templateId], references: [id])
-  messages   Message[]
+  id           String           @id @default(cuid())
+  journeyId    String
+  order        Int
+  key          String?
+  type         String           @default("MESSAGE")
+  label        String?
+  delayMinutes Int              @default(0) // linear journeys: wait before this step fires
+  channel      Channel?
+  templateId   String?
+  config       Json?
+  next         Json?
+  journey      Journey          @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  template     MessageTemplate? @relation(fields: [templateId], references: [id])
+  messages     Message[]
 
   @@unique([journeyId, order])
+  @@unique([journeyId, key])
 }
 
 // One contact's progress through a journey
 model JourneyRun {
-  id         String    @id @default(cuid())
-  journeyId  String
-  contactId  String
-  currentStep Int      @default(0) // next step order to execute
-  completedAt DateTime?
-  createdAt  DateTime  @default(now())
-  journey    Journey   @relation(fields: [journeyId], references: [id], onDelete: Cascade)
-  contact    Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  id           String         @id @default(cuid())
+  journeyId    String
+  contactId    String
+  currentStep  Int            @default(0) // linear journeys: next step order to execute
+  currentKey   String? // branching journeys: node the contact is at
+  waitingEvent String? // WAIT_EVENT: resume when the contact performs this event…
+  waitUntil    DateTime? // …or take the timeout branch at this time
+  exitReason   String? // completed | exit_event | exit_node
+  completedAt  DateTime?
+  createdAt    DateTime       @default(now())
+  journey      Journey        @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  contact      Contact        @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  visits       JourneyVisit[]
 
   @@unique([journeyId, contactId])
+  @@index([contactId]) // cascade deletes / erasure
+  @@index([contactId, waitingEvent])
+}
+
+/// Path analytics: one row each time a contact passes a node (and which branch it took).
+model JourneyVisit {
+  id        String     @id @default(cuid())
+  journeyId String
+  runId     String
+  nodeKey   String
+  branch    String?
+  at        DateTime   @default(now())
+  journey   Journey    @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  run       JourneyRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([journeyId, nodeKey])
+  @@index([runId])
 }
 
 model Job {
@@ -320,6 +415,10 @@ model SubscriptionGroup {
   id          String              @id @default(cuid())
   name        String              @unique
   description String?
+  /// Newsletter: nobody receives it until they subscribe. Otherwise a topic: everyone gets it until they opt out.
+  optIn       Boolean             @default(false)
+  /// Stable key apps can use instead of the id (e.g. "morning-briefing")
+  slug        String?             @unique
   createdAt   DateTime            @default(now())
   states      SubscriptionState[]
   campaigns   Campaign[]
@@ -335,15 +434,17 @@ model SubscriptionState {
   contact    Contact           @relation(fields: [contactId], references: [id], onDelete: Cascade)
 
   @@unique([groupId, contactId])
+  @@index([contactId]) // cascade deletes / erasure
 }
 
 // REST API keys for /api/track and /api/push/register-token
 model ApiKey {
-  id         String    @id @default(cuid())
+  id         String      @id @default(cuid())
   name       String
   prefix     String // first 8 chars, for display
-  keyHash    String    @unique // sha256 of the full key
-  createdAt  DateTime  @default(now())
+  scope      ApiKeyScope @default(SERVER)
+  keyHash    String      @unique // sha256 of the full key
+  createdAt  DateTime    @default(now())
   lastUsedAt DateTime?
   revokedAt  DateTime?
   usage      ApiUsage[]
@@ -376,4 +477,146 @@ model ContentBlock {
   content   String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// Who did what in the console — kept for compliance (default retention 400 days)
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  userEmail  String?
+  action     String // e.g. "POST /api/campaigns/:id/launch", "auth.login", "auth.login_failed"
+  entityType String?
+  entityId   String?
+  status     Int?
+  ip         String?
+  userAgent  String?
+  meta       Json?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([userId, createdAt])
+}
+
+// Outbound event stream: message lifecycle events POSTed to your systems
+model WebhookEndpoint {
+  id            String    @id @default(cuid())
+  kind          String    @default("WEBHOOK") // WEBHOOK = signed JSON to url; SEGMENT = Segment track calls (secret = write key)
+  name          String
+  url           String
+  secret        String // HMAC-SHA256 signing secret (X-Dispatch-Signature)
+  events        Json      @default("[]") // [] = all event types
+  isActive      Boolean   @default(true)
+  failureCount  Int       @default(0)
+  lastError     String?
+  lastSuccessAt DateTime?
+  createdAt     DateTime  @default(now())
+}
+
+// Fixed-window API rate-limit counters (shared across all app instances)
+model RateLimitBucket {
+  key         String
+  windowStart DateTime
+  count       Int      @default(0)
+
+  @@id([key, windowStart])
+  @@index([windowStart])
+}
+
+enum LiveActivityStatus {
+  ACTIVE
+  ENDED
+}
+
+// iOS Live Activities / Android Live Updates: one ongoing story, match, election count…
+model LiveActivity {
+  id           String             @id @default(cuid())
+  key          String             @unique // your id, e.g. "election-2026-us"
+  activityType String // iOS ActivityAttributes type name, e.g. "LiveStoryAttributes"
+  attributes   Json               @default("{}") // static attributes (used when starting remotely)
+  contentState Json               @default("{}") // latest dynamic state
+  status       LiveActivityStatus @default(ACTIVE)
+  updatesSent  Int                @default(0)
+  lastEventAt  DateTime?
+  endedAt      DateTime?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+}
+
+enum LiveActivityTokenKind {
+  UPDATE // iOS: per-activity push token (Activity.pushTokenUpdates)
+  PUSH_TO_START // iOS 17.2+: per-type token that can start an activity remotely
+  FOLLOW // Android: the device follows an activity key via its FCM token
+}
+
+model LiveActivityToken {
+  id           String                @id @default(cuid())
+  kind         LiveActivityTokenKind
+  contactId    String
+  activityKey  String? // UPDATE / FOLLOW
+  activityType String? // PUSH_TO_START
+  token        String // APNs activity/push-to-start token, or FCM token for FOLLOW
+  isActive     Boolean               @default(true)
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  contact      Contact               @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@unique([kind, token, activityKey])
+  @@index([activityKey, kind, isActive])
+  @@index([activityType, kind, isActive])
+  @@index([contactId])
+}
+
+// Content catalog for recommendations and feed-driven sends
+model ContentItem {
+  id          String    @id @default(cuid())
+  externalId  String    @unique // your article id (or the feed GUID / URL)
+  title       String
+  url         String
+  summary     String?
+  imageUrl    String?
+  section     String?
+  tags        Json      @default("[]")
+  language    String?
+  publishedAt DateTime  @default(now())
+  expiresAt   DateTime? // never recommended after this
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([publishedAt])
+  @@index([section, publishedAt])
+}
+
+// RSS/Atom/JSON Feed polled by the worker; new items land in the catalog and can auto-send a campaign
+model ContentFeed {
+  id             String    @id @default(cuid())
+  name           String
+  url            String    @unique
+  format         String    @default("AUTO") // AUTO | RSS | ATOM | JSON
+  section        String? // default section for items without one
+  pollMinutes    Int       @default(5)
+  autoCampaignId String? // launch this campaign for every new item ({{item.title}}, {{item.url}}…)
+  isActive       Boolean   @default(true)
+  lastFetchedAt  DateTime?
+  lastError      String?
+  itemsIngested  Int       @default(0)
+  createdAt      DateTime  @default(now())
+}
+
+/// An integration that is failing (webhook endpoint, push/email provider, content feed).
+/// One open row per key; repeats bump count/lastAt. Resolved automatically on the next success.
+model SystemAlert {
+  id         String    @id @default(cuid())
+  key        String // e.g. "webhook:<id>", "provider:FCM", "feed:<id>"
+  source     String // WEBHOOK | PROVIDER | FEED
+  severity   String    @default("WARNING") // WARNING | CRITICAL
+  title      String
+  detail     String?
+  count      Int       @default(1)
+  firstAt    DateTime  @default(now())
+  lastAt     DateTime  @default(now())
+  notifiedAt DateTime?
+  resolvedAt DateTime?
+
+  @@index([key, resolvedAt])
+  @@index([resolvedAt, lastAt])
 }

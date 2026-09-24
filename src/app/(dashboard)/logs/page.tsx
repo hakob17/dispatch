@@ -66,10 +66,10 @@ function MessageLog() {
   return (
     <div className="rise">
       <div className="flex gap-3 mb-4 items-center">
-        <select className={inputCls + " w-44"} value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}>
+        <select className={inputCls + " w-44"} aria-label="Filter by status" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}>
           {STATUSES.map((s) => <option key={s} value={s}>{s || "All statuses"}</option>)}
         </select>
-        <select className={inputCls + " w-44"} value={channel} onChange={(e) => { setChannel(e.target.value); setPage(1); }}>
+        <select className={inputCls + " w-44"} aria-label="Filter by channel" value={channel} onChange={(e) => { setChannel(e.target.value); setPage(1); }}>
           {CHANNELS.map((c) => <option key={c} value={c}>{c || "All channels"}</option>)}
         </select>
         {data && <span className="figure text-xs text-ink-faint">{data.total.toLocaleString()} messages</span>}
@@ -112,7 +112,7 @@ function EventLog() {
   return (
     <div className="rise">
       <div className="flex gap-2 mb-4 items-center flex-wrap">
-        <input className={inputCls + " w-56"} placeholder="Filter by event name…" value={name} onChange={(e) => { setName(e.target.value); setPage(1); }} />
+        <input className={inputCls + " w-56"} aria-label="Filter by event name" placeholder="Filter by event name…" value={name} onChange={(e) => { setName(e.target.value); setPage(1); }} />
         {data?.names.map((n) => (
           <button
             key={n.name}

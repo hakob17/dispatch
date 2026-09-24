@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import useFetch from "@/lib/useFetch";
 import CommandK from "@/components/CommandK";
+import AlertBanner from "@/components/AlertBanner";
 
 const NAV = [
   { href: "/", label: "Overview", exact: true },
@@ -15,6 +16,7 @@ const NAV = [
   { href: "/journeys", label: "Journeys" },
   { href: "/calendar", label: "Calendar" },
   { href: "/logs", label: "Logs" },
+  { href: "/account", label: "Account" },
   { href: "/settings", label: "Settings", adminOnly: true },
 ];
 
@@ -90,7 +92,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </Link>
         </div>
       </aside>
-      <main className="flex-1 min-w-0 px-10 py-8 max-w-6xl">{children}</main>
+      <main className="flex-1 min-w-0 px-10 py-8 max-w-6xl">
+        {me && <AlertBanner isAdmin={me.role === "ADMIN"} />}
+        {children}
+      </main>
     </div>
   );
 }

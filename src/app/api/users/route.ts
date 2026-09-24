@@ -8,7 +8,7 @@ import { hashPassword } from "@/lib/auth";
 export async function GET() {
   const users = await db.user.findMany({
     orderBy: { createdAt: "asc" },
-    select: { id: true, email: true, name: true, role: true, createdAt: true },
+    select: { id: true, email: true, name: true, role: true, createdAt: true, lastLoginAt: true, mfaEnabled: true, ssoSubject: true },
   });
   return NextResponse.json(users);
 }

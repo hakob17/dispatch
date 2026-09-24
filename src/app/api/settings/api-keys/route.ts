@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { generateApiKey } from "@/lib/apiAuth";
+import { generateApiKey, invalidateKeyCache } from "@/lib/apiAuth";
 
 // Admin-only (middleware: /api/settings/*).
 
@@ -13,7 +13,7 @@ export async function GET() {
   const [keys, usage] = await Promise.all([
     db.apiKey.findMany({
       orderBy: { createdAt: "asc" },
-      select: { id: true, name: true, prefix: true, createdAt: true, lastUsedAt: true, revokedAt: true },
+      select: { id: true, name: true, prefix: true, scope: true, createdAt: true, lastUsedAt: true, revokedAt: true },
     }),
     db.apiUsage.findMany({ where: { date: { gte: since } } }),
   ]);
@@ -35,10 +35,13 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const body = z.object({ name: z.string().min(1) }).safeParse(await req.json());
+  const body = z
+    .object({ name: z.string().min(1), scope: z.enum(["SERVER", "SDK"]).default("SERVER") })
+    .safeParse(await req.json());
   if (!body.success) return NextResponse.json({ error: body.error.flatten() }, { status: 400 });
-  const { raw, prefix, keyHash } = generateApiKey();
-  const key = await db.apiKey.create({ data: { name: body.data.name, prefix, keyHash } });
+  const { raw, prefix, keyHash } = generateApiKey(body.data.scope);
+  const key = await db.apiKey.create({ data: { name: body.data.name, prefix, keyHash, scope: body.data.scope } });
+  invalidateKeyCache();
   // raw key is returned exactly once
-  return NextResponse.json({ id: key.id, name: key.name, prefix, key: raw }, { status: 201 });
+  return NextResponse.json({ id: key.id, name: key.name, scope: key.scope, prefix, key: raw }, { status: 201 });
 }

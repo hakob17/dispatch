@@ -16,6 +16,8 @@ interface CampaignRow {
   scheduledAt: string | null;
   createdAt: string;
   segment: { name: string } | null;
+  subscriptionGroup: { name: string; optIn: boolean } | null;
+  allPushPlatforms: boolean;
   variants: { name: string; weight: number; template: { name: string } }[];
   _count: { messages: number };
 }
@@ -48,8 +50,15 @@ export default function CampaignsPage() {
                     ))}
                   </div>
                 </td>
-                <td className="px-4 py-3"><Badge tone="QUEUED">{c.channel}</Badge></td>
-                <td className="px-4 py-3 text-sm text-ink-soft">{c.segment?.name ?? "Everyone"}</td>
+                <td className="px-4 py-3"><Badge tone="QUEUED">{c.allPushPlatforms ? "ALL PHONES" : c.channel}</Badge></td>
+                <td className="px-4 py-3 text-sm text-ink-soft">
+                  {c.segment?.name ?? "Everyone"}
+                  {c.subscriptionGroup && (
+                    <div className="text-xs text-ink-faint">
+                      {c.subscriptionGroup.optIn ? "newsletter" : "topic"}: {c.subscriptionGroup.name}
+                    </div>
+                  )}
+                </td>
                 <td className="px-4 py-3 text-xs text-ink-soft">
                   {c.variants.map((v) => `${v.name} ${v.weight}% · ${v.template.name}`).join(" / ")}
                 </td>

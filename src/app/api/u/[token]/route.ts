@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { isSubscribed } from "@/lib/subscriptions";
 import { parseUnsubToken } from "@/lib/tracking/sign";
 import { suppress, unsuppress, isSuppressed } from "@/lib/suppression";
 
@@ -27,7 +28,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
       id: g.id,
       name: g.name,
       description: g.description,
-      subscribed: stateMap.get(g.id) ?? true, // default opt-in
+      kind: g.optIn ? "newsletter" : "topic",
+      subscribed: isSubscribed(g, stateMap.get(g.id)),
     })),
   });
 }

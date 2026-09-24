@@ -1,26 +1,29 @@
-import { Channel, Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { enqueueMany } from "@/lib/queue/enqueue";
 import { filtersToWhere, SegmentFilter } from "@/lib/segments/resolve";
+import { groupAudienceWhere } from "@/lib/subscriptions";
+import { campaignPushChannels, fanOut } from "@/lib/campaignFanOut";
 
-/** Weighted-random variant pick for A/B tests. */
-function pickVariant<T extends { weight: number }>(variants: T[]): T {
-  const total = variants.reduce((s, v) => s + v.weight, 0) || 1;
-  let r = Math.random() * total;
-  for (const v of variants) {
-    r -= v.weight;
-    if (r <= 0) return v;
-  }
-  return variants[variants.length - 1];
+
+interface PartitionPayload {
+  campaignId: string;
+  runStartedAt: string;
+  /** feed auto-send: the article this run is about (its own run; repeats allowed) */
+  contentItemId?: string | null;
+  /** exclusive lower / inclusive upper contact-id bounds; null = open */
+  after: string | null;
+  upTo: string | null;
 }
 
-const PUSH_CHANNELS: Channel[] = ["WEB_PUSH", "FCM", "APNS"];
-
-export async function handleLaunchCampaign(payload: { campaignId: string }): Promise<void> {
-  const campaign = await db.campaign.findUnique({
-    where: { id: payload.campaignId },
-    include: { segment: true, variants: true },
-  });
+/**
+ * Launch = split the audience into contact-id ranges and fan each range out
+ * as its own LAUNCH_PARTITION job, so several workers create messages in
+ * parallel (a 1M-device broadcast is otherwise bound by one worker's insert
+ * rate). LAUNCH_PARTITIONS sets the split (default 8; 1 = serial).
+ */
+export async function handleLaunchCampaign(payload: { campaignId: string; contentItemId?: string }): Promise<void> {
+  const campaign = await db.campaign.findUnique({ where: { id: payload.campaignId }, include: { variants: true } });
   if (!campaign) return;
   if (campaign.status === "CANCELED") return;
   if (!campaign.variants.length) {
@@ -29,43 +32,116 @@ export async function handleLaunchCampaign(payload: { campaignId: string }): Pro
   }
 
   // RUNNING = crash-resume of the current run (keep its start time);
-  // anything else = a fresh run starts now.
-  const runStartedAt =
-    campaign.status === "RUNNING" && campaign.lastRunAt ? campaign.lastRunAt : new Date();
+  // anything else = a fresh run starts now. A feed auto-send (one run per
+  // article) is always fresh: several articles may be going out at once.
+  const itemRun = !!payload.contentItemId;
+  const resuming = !itemRun && campaign.status === "RUNNING" && !!campaign.lastRunAt;
+  const runStartedAt = resuming ? campaign.lastRunAt! : new Date();
   await db.campaign.update({
     where: { id: campaign.id },
-    data: {
-      status: "RUNNING",
-      launchedAt: campaign.launchedAt ?? new Date(),
-      lastRunAt: runStartedAt,
-    },
+    data: { status: "RUNNING", launchedAt: campaign.launchedAt ?? new Date(), lastRunAt: runStartedAt },
   });
 
-  const segmentWhere = campaign.segment
-    ? filtersToWhere(campaign.segment.filters as unknown as SegmentFilter[])
-    : {};
-  const isPush = PUSH_CHANNELS.includes(campaign.channel);
+  if (resuming || itemRun) {
+    // Partitions already queued resume themselves; enqueueing again would double-send
+    const live = await db.job.count({
+      where: {
+        type: "LAUNCH_PARTITION",
+        status: { in: ["PENDING", "RUNNING"] },
+        AND: [
+          { payload: { path: ["campaignId"], equals: campaign.id } },
+          ...(itemRun ? [{ payload: { path: ["contentItemId"], equals: payload.contentItemId! } }] : []),
+        ],
+      },
+    });
+    if (live) return;
+  }
 
-  // Reachability on the channel + exclude contacts already messaged in this
-  // run (crash-safe). One-shot campaigns exclude anyone ever messaged;
-  // recurring campaigns only exclude contacts messaged since this run began,
-  // so the next run can message them again.
-  const messagedFilter: Prisma.MessageWhereInput =
-    campaign.recurrence === "NONE"
-      ? { campaignId: campaign.id }
-      : { campaignId: campaign.id, createdAt: { gte: runStartedAt } };
+  const parts = Math.max(1, Number(process.env.LAUNCH_PARTITIONS) || 8);
+  const bounds = parts > 1 ? await idBoundaries(parts) : [];
+  const edges = [null, ...bounds, null];
+  const partitions: PartitionPayload[] = [];
+  for (let i = 0; i < edges.length - 1; i++) {
+    partitions.push({
+      campaignId: campaign.id,
+      runStartedAt: runStartedAt.toISOString(),
+      contentItemId: payload.contentItemId ?? null,
+      after: edges[i],
+      upTo: edges[i + 1],
+    });
+  }
+  await enqueueMany(partitions.map((p) => ({ type: "LAUNCH_PARTITION" as const, payload: p as unknown as Record<string, unknown> })));
+  console.log(`[worker] campaign ${campaign.id} launching in ${partitions.length} partition(s)`);
+}
 
+/** k−1 contact ids splitting the contact table into k equal ranges (ids are opaque but ordered). */
+async function idBoundaries(k: number): Promise<string[]> {
+  const rows = await db.$queryRaw<{ id: string }[]>`
+    SELECT max(id) AS id FROM (SELECT id, ntile(${k}::int) OVER (ORDER BY id) AS t FROM "Contact") x
+    GROUP BY t ORDER BY 1`;
+  return rows.slice(0, -1).map((r) => r.id);
+}
+
+export async function handleLaunchPartition(p: PartitionPayload): Promise<void> {
+  const campaign = await db.campaign.findUnique({
+    where: { id: p.campaignId },
+    include: { segment: true, variants: true, subscriptionGroup: { select: { id: true, optIn: true } } },
+  });
+  if (!campaign || campaign.status === "CANCELED") return;
+  const runStartedAt = new Date(p.runStartedAt);
+
+  const segmentWhere = campaign.segment ? filtersToWhere(campaign.segment.filters as unknown as SegmentFilter[]) : {};
+  const pushChannels = campaignPushChannels(campaign);
+  const isPush = pushChannels.length > 0;
+  const range: Prisma.ContactWhereInput = {
+    id: { ...(p.after ? { gt: p.after } : {}), ...(p.upTo ? { lte: p.upTo } : {}) },
+  };
+
+  // Reachability on the channel. Deliberately no "not yet messaged" subquery
+  // here: re-checking the growing Message table on every page made each page
+  // slower than the last (seconds per page at scale). Instead:
+  //  - within a run, keyset paging by id never revisits a contact;
+  //  - crash-resume starts after the highest contact messaged in this run and
+  //    range (pages are inserted atomically, in id order);
+  //  - one-shot campaigns skip contacts messaged in an earlier run (e.g. an
+  //    API send to specific recipients before this broadcast) via a preloaded set.
   const where: Prisma.ContactWhereInput = {
     AND: [
       segmentWhere,
+      range,
+      // Newsletters only reach subscribers. Topic opt-outs stay in the audience
+      // and are recorded as SUPPRESSED at send time, so reports show them.
+      campaign.subscriptionGroup?.optIn ? groupAudienceWhere(campaign.subscriptionGroup) : {},
       isPush
-        ? { subscriptions: { some: { channel: campaign.channel, isActive: true } } }
+        ? { subscriptions: { some: { channel: { in: pushChannels }, isActive: true } } }
         : campaign.channel === "EMAIL"
           ? { email: { not: null } }
-          : {},
-      { messages: { none: messagedFilter } },
+          : campaign.channel === "SMS" || campaign.channel === "WHATSAPP"
+            ? { phone: { not: null } }
+            : {},
     ],
   };
+
+  const last = await db.message.findFirst({
+    where: { campaignId: campaign.id, createdAt: { gte: runStartedAt }, contact: range, ...(p.contentItemId ? { contentItemId: p.contentItemId } : {}) },
+    orderBy: { contactId: "desc" },
+    select: { contactId: true },
+  });
+  let cursor: string | undefined = last?.contactId;
+  if (cursor) console.log(`[worker] campaign ${campaign.id} partition resuming after contact ${cursor}`);
+
+  const alreadyMessaged =
+    campaign.recurrence === "NONE" && !p.contentItemId
+      ? new Set(
+          (
+            await db.message.findMany({
+              where: { campaignId: campaign.id, createdAt: { lt: runStartedAt }, contact: range },
+              select: { contactId: true },
+              distinct: ["contactId"],
+            })
+          ).map((m) => m.contactId)
+        )
+      : new Set<string>();
 
   const suppressed = new Set(
     campaign.channel === "EMAIL"
@@ -73,71 +149,30 @@ export async function handleLaunchCampaign(payload: { campaignId: string }): Pro
       : []
   );
 
-  let cursor: string | undefined;
+  const pageSize = Number(process.env.LAUNCH_PAGE_SIZE) || 5000;
   let total = 0;
   for (;;) {
+    const tq = Date.now();
     const contacts = await db.contact.findMany({
-      where,
-      select: { id: true, email: true, subscriptions: isPush ? { where: { channel: campaign.channel, isActive: true }, select: { id: true } } : false },
+      // Keyset paging (id > last), not Prisma cursor+skip: skip:1 silently drops a
+      // real recipient whenever the cursor row no longer matches the filter.
+      where: cursor ? { AND: [where, { id: { gt: cursor } }] } : where,
+      select: { id: true, email: true, subscriptions: isPush ? { where: { channel: { in: pushChannels }, isActive: true }, select: { id: true, channel: true } } : false },
       orderBy: { id: "asc" },
-      take: 500,
-      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      take: pageSize,
     });
     if (!contacts.length) break;
     cursor = contacts[contacts.length - 1].id;
 
-    const rows: Prisma.MessageCreateManyInput[] = [];
-    for (const c of contacts) {
-      const variant = pickVariant(campaign.variants);
-      const isSuppressedEmail =
-        campaign.channel === "EMAIL" && c.email && suppressed.has(c.email.toLowerCase());
-      // Control group: hold out a random slice — a Message row marks membership
-      // (never sent) so lift can be measured against it.
-      if (campaign.controlGroupPct > 0 && Math.random() * 100 < campaign.controlGroupPct) {
-        rows.push({
-          campaignId: campaign.id,
-          variantId: variant.id,
-          contactId: c.id,
-          channel: campaign.channel,
-          status: "HELD_OUT",
-        });
-        continue;
-      }
-      if (isPush) {
-        for (const sub of (c as { subscriptions: { id: string }[] }).subscriptions) {
-          rows.push({
-            campaignId: campaign.id,
-            variantId: variant.id,
-            contactId: c.id,
-            pushSubscriptionId: sub.id,
-            channel: campaign.channel,
-            status: "QUEUED",
-          });
-        }
-      } else {
-        rows.push({
-          campaignId: campaign.id,
-          variantId: variant.id,
-          contactId: c.id,
-          channel: campaign.channel,
-          status: isSuppressedEmail ? "SUPPRESSED" : "QUEUED",
-        });
-      }
-    }
+    const tf = Date.now();
+    const fresh = alreadyMessaged.size ? contacts.filter((c) => !alreadyMessaged.has(c.id)) : contacts;
+    total += await fanOut(campaign, fresh, suppressed, { contentItemId: p.contentItemId ?? null });
+    if (process.env.LAUNCH_TIMING) console.log(`[launch] page ${contacts.length}: query ${tf - tq}ms, fan-out ${Date.now() - tf}ms`);
 
-    // Create messages, then jobs for the queued ones
-    await db.message.createMany({ data: rows });
-    const created = await db.message.findMany({
-      where: { campaignId: campaign.id, status: "QUEUED", contactId: { in: contacts.map((c) => c.id) } },
-      select: { id: true },
-    });
-    await enqueueMany(created.map((m) => ({ type: "SEND_MESSAGE", payload: { messageId: m.id } })));
-    total += created.length;
-
-    if (contacts.length < 500) break;
+    if (contacts.length < pageSize) break;
   }
 
-  console.log(`[worker] campaign ${campaign.id} fanned out ${total} messages`);
+  console.log(`[worker] campaign ${campaign.id} partition fanned out ${total} messages`);
 }
 
 /**
@@ -155,7 +190,11 @@ export async function completeFinishedCampaigns(): Promise<void> {
       where: { campaignId: c.id, status: { in: ["QUEUED", "SENDING"] } },
     });
     const pendingJobs = await db.job.count({
-      where: { status: { in: ["PENDING", "RUNNING"] }, type: "LAUNCH_CAMPAIGN", payload: { path: ["campaignId"], equals: c.id } },
+      where: {
+        status: { in: ["PENDING", "RUNNING"] },
+        type: { in: ["LAUNCH_CAMPAIGN", "LAUNCH_PARTITION"] },
+        payload: { path: ["campaignId"], equals: c.id },
+      },
     });
     if (pending !== 0 || pendingJobs !== 0) continue;
 

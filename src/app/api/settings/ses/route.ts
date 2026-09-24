@@ -15,6 +15,7 @@ export async function GET() {
     source: stored ? "settings" : effective ? "env" : null,
     form: {
       accessKeyId: mask(effective?.accessKeyId),
+      usingIamRole: !!effective && !effective.accessKeyId,
       secretAccessKey: effective?.secretAccessKey ? "••••••••" : null,
       region: effective?.region ?? "us-east-1",
       fromEmail: effective?.fromEmail ?? "",
@@ -26,8 +27,9 @@ export async function GET() {
 }
 
 const sesSchema = z.object({
-  accessKeyId: z.string().min(16),
-  secretAccessKey: z.string().min(16),
+  // Optional: leave blank on AWS to use the ECS task role instead of stored keys
+  accessKeyId: z.string().min(16).optional().or(z.literal("")),
+  secretAccessKey: z.string().min(16).optional().or(z.literal("")),
   region: z.string().min(2),
   fromEmail: z.string().email(),
   fromName: z.string().optional(),
@@ -38,8 +40,13 @@ const sesSchema = z.object({
 export async function POST(req: NextRequest) {
   const body = sesSchema.safeParse(await req.json());
   if (!body.success) return NextResponse.json({ error: body.error.flatten() }, { status: 400 });
+  if (!!body.data.accessKeyId !== !!body.data.secretAccessKey) {
+    return NextResponse.json({ error: "provide both access key ID and secret, or neither (IAM role)" }, { status: 400 });
+  }
   await setSetting("ses", {
     ...body.data,
+    accessKeyId: body.data.accessKeyId || undefined,
+    secretAccessKey: body.data.secretAccessKey || undefined,
     fromName: body.data.fromName || undefined,
     configurationSet: body.data.configurationSet || undefined,
     maxSendRate: body.data.maxSendRate || undefined,

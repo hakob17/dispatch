@@ -12,6 +12,11 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "packages/*/dist/**",
+    // Native SDKs and example apps have their own toolchains
+    "examples/**",
+    "packages/ios-sdk/**",
+    "packages/android-sdk/**",
   ]),
 ]);
 

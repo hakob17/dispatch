@@ -1,0 +1,33 @@
+{
+  "name": "@dispatch/react-sdk",
+  "version": "0.1.0",
+  "description": "Dispatch client SDK for React and React Native: identity, events, push token registration, open/delivery tracking, preferences.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./web": {
+      "types": "./dist/web.d.ts",
+      "import": "./dist/web.js"
+    },
+    "./dispatch-sw.js": "./sw/dispatch-sw.js"
+  },
+  "files": ["dist", "sw", "README.md"],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "node --import tsx --test test/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "peerDependencies": {
+    "react": ">=17"
+  },
+  "peerDependenciesMeta": {
+    "react": { "optional": true }
+  }
+}

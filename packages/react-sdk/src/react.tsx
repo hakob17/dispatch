@@ -306,7 +306,13 @@ export function useInAppMessage(opts: { pollMs?: number } = {}): {
     const load = async () => {
       try {
         const res = await client.getInbox({ limit: 20 });
-        if (!cancelled) setQueue(res.messages.filter((m) => m.display && !shown.current.has(m.id)).reverse()); // oldest first
+        if (cancelled) return;
+        // Append new pop-ups (oldest first); keep the one on screen — it's already in `shown`
+        setQueue((q) => {
+          const queued = new Set(q.map((m) => m.id));
+          const fresh = res.messages.filter((m) => m.display && !shown.current.has(m.id) && !queued.has(m.id)).reverse();
+          return fresh.length ? [...q, ...fresh] : q;
+        });
       } catch {
         // offline: try again next tick
       }

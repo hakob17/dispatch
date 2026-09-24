@@ -8,6 +8,7 @@ import { contentCardAdapter, inAppAdapter } from "./inApp";
 import { webhookAdapter } from "./webhook";
 import { smsAdapter, whatsappAdapter } from "./sms/twilio";
 import { mockAdapter, mockEnabled } from "./mock";
+import { demoRelayEnabled } from "./push/demoRelay";
 
 const adapters: Record<Channel, ChannelAdapter> = {
   EMAIL: sesAdapter,
@@ -25,6 +26,9 @@ const adapters: Record<Channel, ChannelAdapter> = {
 const MOCKABLE: Channel[] = ["FCM", "APNS", "WEB_PUSH", "SMS", "WHATSAPP"];
 
 export function getAdapter(channel: Channel): ChannelAdapter {
+  // Local demo: web push needs no provider account (just VAPID keys), so it goes out for real
+  // while APNs/FCM are mocked and relayed to the simulators (see push/demoRelay.ts)
+  if (channel === "WEB_PUSH" && demoRelayEnabled()) return adapters[channel];
   if (MOCKABLE.includes(channel) && mockEnabled()) return mockAdapter(adapters[channel]);
   return adapters[channel];
 }

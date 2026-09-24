@@ -30,6 +30,7 @@ const PUBLIC_PREFIXES = [
   "/api/auth/mfa/", // pending-token or session checked in the routes
   "/api/auth/sso/",
   "/sw.js",
+  "/dispatch-sw.js",
   "/_next/",
   "/favicon",
   "/icon",

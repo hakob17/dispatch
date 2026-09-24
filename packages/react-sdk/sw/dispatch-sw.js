@@ -31,6 +31,10 @@ self.addEventListener("push", (event) => {
         data: { url: data.url, messageId: data.messageId },
       }),
       report("received", data.messageId),
+      // Tell open tabs too (onWebPushReceived in "@dispatch/react-sdk/web")
+      clients.matchAll({ type: "window", includeUncontrolled: true }).then((wins) => {
+        for (const win of wins) win.postMessage({ type: "dispatch:push", push: data });
+      }),
     ])
   );
 });

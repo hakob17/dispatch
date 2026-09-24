@@ -77,7 +77,9 @@ export async function relayToDemoDevices(msgs: RenderedMessage[]): Promise<void>
     try {
       if (m.channel === "APNS") {
         const bundleId = deviceId.startsWith("demo-rn-") ? DEMO_RN_BUNDLE_ID : DEMO_BUNDLE_ID;
-        await pushToIosSimulator(buildApnsPayload(m), bundleId);
+        // Two simulators can be booted (Swift app + React Native app): target each by UDID if given
+        const device = (bundleId === DEMO_RN_BUNDLE_ID ? process.env.DEMO_RN_SIMULATOR : process.env.DEMO_IOS_SIMULATOR) || "booted";
+        await pushToIosSimulator(buildApnsPayload(m), bundleId, device);
         console.log(`[demo-relay] iOS simulator (${bundleId}) ← "${m.pushTitle}" (${m.messageId})`);
       } else {
         const fcm = buildFcmMessage(m);

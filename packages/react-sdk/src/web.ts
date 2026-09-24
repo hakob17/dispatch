@@ -61,3 +61,16 @@ function base64UrlToBytes(b64: string): Uint8Array {
   const raw = atob(padded);
   return Uint8Array.from(raw, (c) => c.charCodeAt(0));
 }
+
+/**
+ * Call `handler` whenever a Dispatch web push arrives while this page is open (the service
+ * worker still shows the system notification). Returns an unsubscribe function.
+ */
+export function onWebPushReceived(handler: (push: { title: string; body: string; url?: string | null; messageId?: string | null; image?: string | null }) => void): () => void {
+  if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return () => {};
+  const listener = (e: MessageEvent) => {
+    if (e.data?.type === "dispatch:push") handler(e.data.push);
+  };
+  navigator.serviceWorker.addEventListener("message", listener);
+  return () => navigator.serviceWorker.removeEventListener("message", listener);
+}

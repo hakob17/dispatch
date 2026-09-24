@@ -1,42 +1,81 @@
-# Dispatch — a Braze-style engagement console
+# Dispatch — a self-hosted customer engagement platform
 
-Self-hosted customer engagement platform: contacts, segments, multi-channel campaigns
-(email / web push / mobile push / webhooks), A/B testing with control groups and lift,
-event-triggered + recurring campaigns, journeys, subscription groups with a contact
-preference center, frequency capping + quiet hours, event tracking with API keys,
-time-series analytics, activity logs, a content calendar, media library, reusable
-content blocks, and ⌘K search — with email deliverability treated as a first-class
-feature.
+A Braze-style platform for news and media apps: push, in-app and email at newsroom speed,
+run in your own AWS account.
 
-Built with Next.js (App Router) + TypeScript, Postgres + Prisma, and a DB-backed job
-queue processed by a separate worker process. No Redis required.
+- **Channels:** mobile push (APNs direct and FCM), web push, email (SES), SMS and WhatsApp
+  (Twilio), in-app messages and message centre, content cards, and webhooks.
+- **Campaigns:** A/B tests with control groups and lift, scheduled, recurring, event-triggered
+  and API-triggered sends, breaking-news priority, one campaign to all phones, and delivery
+  at each reader's best time.
+- **Journeys:** a visual builder with messages, delays, condition splits, A/B splits,
+  wait-for-event and exits.
+- **Audiences:** segments, newsletters (opt-in) and topics (opt-out), a preference centre,
+  quiet hours and frequency caps.
+- **Personalisation:** article recommendations, RSS/Atom feed auto-sends, per-language
+  templates, Live Activities and Android Live Updates.
+- **SDKs:** React / React Native, iOS (Swift) and Android (Kotlin), plus demo apps for all three.
+- **Data:** Segment in and out, signed event webhooks, S3 exports, warehouse loads for
+  Snowflake, Redshift and BigQuery, and full export for exit.
+- **Security and operations:** SSO (OIDC or SAML, e.g. Ping Identity), two-step verification,
+  audit log, rate limits, integration-failure alerts, CloudWatch alarms, and Terraform for AWS.
+
+Built with Next.js (App Router) + TypeScript, Postgres + Prisma, and a DB-backed job queue
+processed by separate worker processes. No Redis required.
+
+## Repository layout
+
+| Path | What |
+|---|---|
+| `src/app` | Console UI (`(dashboard)`) and all HTTP APIs (`api/`) |
+| `src/lib` | Domain logic shared by the app and the worker: channels, journeys, recommendations, SSO… |
+| `worker/` | Job-queue worker: campaign launch and fan-out, sending, journeys, feeds, exports |
+| `prisma/` | Schema and migrations |
+| `packages/react-sdk` | React / React Native / web SDK |
+| `packages/ios-sdk` | iOS SDK (Swift Package) with a notification service extension |
+| `packages/android-sdk` | Android SDK (Kotlin, Gradle module `:dispatch`) |
+| `examples/` | Demo apps for iOS, Android and React Native ([guide](examples/README.md)) |
+| `infra/aws` | Terraform for the AWS deployment |
+| `scripts/` | Load test (`npm run loadtest`), demo driver (`npm run demo`), AWS deploy |
+| `docs/` | API reference, operations runbooks, security, accessibility, SDK footprint |
 
 ## Quick start
 
 ```bash
 npm install
-createdb brazecopy                  # local Postgres
-cp .env.example .env                # fill in DATABASE_URL at minimum
-npx prisma migrate dev
-npx prisma db seed                  # 50 demo contacts, a segment, 2 templates
+createdb dispatch_dev                # local Postgres
+cp .env.example .env                 # set DATABASE_URL at minimum
+npx prisma migrate deploy
+npm run db:seed                      # demo contacts, a segment, templates and an admin account
 
-npm run dev                         # dashboard + API on :3000
-npm run worker                      # job queue worker (second terminal)
-npm test                            # server tests; npm run test:sdk for the SDK
+npm run dev                          # console + API on :3000
+npm run worker                       # job-queue worker (second terminal)
 ```
 
 Open http://localhost:3000 and sign in. The seed creates a default admin —
 **admin@dispatch.local / admin123!** — change it right away (Settings → Team). On a fresh
-DB without seeding, the login page offers a first-run "create admin account" step instead.
+database without seeding, the login page offers a first-run "create admin account" step instead.
+
+To try it end to end without Apple or Google credentials, run the demo apps: `npm run demo -- setup`,
+`npm run worker:demo`, then follow [examples/README.md](examples/README.md).
+
+Tests: `npm test` (server; database tests use `DATABASE_URL`), `npm run test:sdk` (React SDK),
+`swift test` in `packages/ios-sdk`, `./gradlew :dispatch:testDebugUnitTest` in `packages/android-sdk`.
 
 ## Accounts & roles
 
 Login uses DB-backed accounts (scrypt-hashed passwords, signed session cookie).
 
-- **Single sign-on (OIDC).** Okta, Microsoft Entra ID, Google Workspace or any OpenID Connect
-  provider (Settings → Single sign-on, or `OIDC_*` env vars). It uses the authorization-code
-  flow with PKCE. Accounts can be restricted to allowed email domains and created on first
-  sign-in, and admin rights can come from the IdP's `groups` claim, checked at every sign-in.
+- **Single sign-on: OIDC or SAML 2.0.** Works with Ping Identity (PingFederate / PingOne, with
+  PingID multi-factor enforced by Ping), Okta, Microsoft Entra ID, ADFS, Google Workspace and any
+  other OIDC or SAML provider. Configure it under Settings → Single sign-on, or with `OIDC_*` /
+  `SAML_*` env vars.
+  - OIDC uses the authorization-code flow with PKCE.
+  - SAML requires signed assertions and one-use `InResponseTo`, and checks audience and validity
+    window. SP metadata is at `/api/auth/sso/saml/metadata`.
+  - Accounts can be limited to allowed email domains and created on first sign-in. Admin rights
+    can come from IdP groups (`groups` / `memberOf`), checked at every sign-in.
+  - Ping setup steps are in [docs/security.md](docs/security.md).
 - **Two-step verification (TOTP).** Works with any authenticator app. Users get 10 one-time
   recovery codes, and secrets are AES-GCM encrypted (`MFA_ENCRYPTION_KEY`). Users manage it
   on the Account page; admins can reset it for someone who lost their phone.
@@ -46,13 +85,15 @@ Login uses DB-backed accounts (scrypt-hashed passwords, signed session cookie).
 - **Audit and brute-force protection.** Failed passwords and codes are audited and
   rate-limited (10 per minute per IP, 5 codes per minute per user).
 
-- **ADMIN** — full console **plus** the Settings page: AWS/SES credentials, VAPID keys,
-  FCM service account, and Team management (invite users, change roles, reset passwords).
+- **ADMIN** — full console **plus** the Settings page: channel credentials (SES, VAPID, FCM,
+  APNs, Twilio), newsletters and topics, API keys, webhooks, integration health, data warehouse,
+  single sign-on, sign-in policy, audit log, and Team management.
 - **USER** — the full working console (contacts, segments, templates, campaigns, journeys)
   but no Settings/credentials; enforcement lives in the middleware, not just the nav.
 
-Public (no login): tracking pixel/click, unsubscribe pages, SES webhook, push
-subscribe/track APIs, and `/demo/push`.
+Public (no login, authenticated some other way): the SDK and server APIs (API keys), tracking
+pixel/click and unsubscribe pages (signed tokens), provider webhooks (SES/SNS signatures, Twilio
+signatures), SSO callbacks, and `/demo/push`.
 
 ## Channels
 
@@ -144,23 +185,26 @@ DNS / SES setup (one-time, per sending domain — status shown live on the Setti
 ## Architecture
 
 ```
-Next.js app (dashboard UI + API routes)      worker (tsx, separate process)
-        │                                          │ polls Job table (1s)
-        ├── Postgres ◄──────────────────────────────┤ FOR UPDATE SKIP LOCKED
-        │     contacts, segments, templates,        │
-        │     campaigns, variants, messages,        ├── channel adapters
-        │     events, suppressions, journeys, jobs  │     SES / web-push / FCM / webhook
-        └── tracking endpoints                      └── retries w/ backoff, rate limiting
-              /api/t/o (open pixel)
-              /api/t/c (click redirect)
-              /u/[token] (one-click unsubscribe)
-              /api/webhooks/ses (SNS events)
-              /api/track (custom events)
+Next.js app (console UI + APIs)              worker (separate process, scales horizontally)
+        │                                          │ claims jobs: FOR UPDATE SKIP LOCKED
+        ├── Postgres ◄──────────────────────────────┤ heartbeats; stuck jobs are retried
+        │     contacts, devices, segments,         │
+        │     templates, campaigns, messages,      ├── launch & fan-out (partitioned)
+        │     journeys, events, content, jobs      ├── channel adapters
+        └── public endpoints                       │     APNs · FCM · web push · SES ·
+              /api/sdk/v1/*   (SDK key)            │     Twilio SMS/WhatsApp · in-app · cards · webhook
+              /api/v1/*       (server key)         ├── journeys, feeds, Live Activities
+              /api/t/o, /api/t/c (tracking)        ├── webhooks out, Segment out, S3 exports
+              /u/[token] (unsubscribe)             └── metrics, alerts, retention purges
+              /api/webhooks/ses, /twilio
 ```
 
-- **Campaign send**: launch → `LAUNCH_CAMPAIGN` job → audience resolved in pages of 500 →
-  one `Message` row per recipient (weighted-random A/B variant) → one `SEND_MESSAGE` job each →
-  adapter → status transitions `QUEUED → SENDING → SENT → DELIVERED/BOUNCED/FAILED`.
+- **Campaign send.** Launching creates a `LAUNCH_CAMPAIGN` job. The audience is split into
+  `LAUNCH_PARTITIONS` contact-id ranges that fan out in parallel. Each recipient device gets a
+  `Message` row (weighted-random A/B variant, control-group holdouts marked). Messages go out in
+  `SEND_BATCH` jobs of 500 (FCM `sendEach`, APNs HTTP/2 streams). Statuses move
+  `QUEUED → SENDING → SENT → DELIVERED` (or `BOUNCED` / `FAILED` / `SUPPRESSED`), and opens and
+  clicks are timestamped on the message.
 - **Journeys** (Canvas-style): a flow of steps built visually in the console — *send message*
   (any channel, including all phones), *delay*, *condition split* (profile attributes, segment,
   did an event, opened/clicked an earlier step's message, subscribed to a newsletter, reachable
@@ -188,23 +232,46 @@ through Postgres). Responses carry `X-RateLimit-Limit/Remaining/Reset`, and a re
 the limit gets `429` with `Retry-After`. Nothing from a rejected request is accepted or
 silently dropped.
 
-### Client SDK — `/api/sdk/v1/*` (CORS-enabled; used by [`packages/react-sdk`](packages/react-sdk))
+### Client SDK — `/api/sdk/v1/*` (SDK key, CORS-enabled)
+
+The SDKs wrap these; the full reference with rate limits and error bodies is in
+[docs/api.md](docs/api.md).
 
 ```
-POST /api/sdk/v1/identify        { anonymousId?, externalId?, email?, firstName?, attributes? }
+POST /api/sdk/v1/identify        { anonymousId?, externalId?, email?, firstName?, language?, attributes? }
 POST /api/sdk/v1/events          { anonymousId|externalId, events: [{ name, properties?, timestamp? }] }   ≤100
 POST /api/sdk/v1/push/register   { anonymousId|externalId, channel: FCM|APNS|WEB_PUSH, token|subscription, platform?, deviceId? }
 POST /api/sdk/v1/push/unregister { channel, token }
 POST /api/sdk/v1/push/received   { messageId }      device-side delivery receipt
 POST /api/sdk/v1/push/opened     { messageId }      tap / cold start
-GET  /api/sdk/v1/preferences     ?externalId|anonymousId
-PUT  /api/sdk/v1/preferences     { …, groups: { <groupId>: bool } }
+GET  /api/sdk/v1/preferences     ?externalId|anonymousId          newsletters + topics with state
+PUT  /api/sdk/v1/preferences     { …, groups: { "<id or slug>": bool } }
+GET  /api/sdk/v1/inbox           message centre + pending in-app messages   (see below)
+GET  /api/sdk/v1/cards           content-card feed                          (see below)
+GET  /api/sdk/v1/recommendations ?strategy=for_you|trending|latest
+POST /api/sdk/v1/live-activities/token | push-to-start | follow
 GET  /api/sdk/v1/config          web push VAPID key
 ```
 
 Users can be anonymous (an `anonymousId` from the SDK) and still hold devices, events and
 preferences. At sign-in, `identify` with both ids merges the anonymous profile into the
 known one.
+
+### SDKs
+
+| SDK | Platforms | Install | Size |
+|---|---|---|---|
+| [`packages/react-sdk`](packages/react-sdk) | React Native, React web (TypeScript, no dependencies) | local package `@dispatch/react-sdk` | 4.8 KB gzipped |
+| [`packages/ios-sdk`](packages/ios-sdk) | iOS 15+, Swift 6 (Swift Package), notification service extension | Swift Package from this repo | ~254 KB |
+| [`packages/android-sdk`](packages/android-sdk) | Android 6.0+ (minSdk 23), Kotlin | Gradle module `:dispatch` | ~42 KB in the APK |
+
+All three cover identity with anonymous-to-known merge, event tracking, push token registration,
+delivery and open reporting, newsletters and topics, the message centre, in-app messages,
+content cards, recommendations, and Live Activities / Android Live Updates.
+
+The SDKs never show the permission prompt; the app decides when to ask. Deep links go to the
+app's own navigation. Each SDK's README has the integration steps, and
+[docs/sdk-footprint.md](docs/sdk-footprint.md) has the size and startup measurements.
 
 ### Server — `/api/v1/*` (server key required)
 
@@ -215,11 +282,14 @@ POST /api/v1/users/track         { attributes: [...≤100], events: [...≤100] 
 POST /api/v1/users/delete        { externalIds?, emails? }       right to erasure
 GET  /api/v1/users/export        ?externalId|email               data subject access request (JSON)
 GET  /api/v1/export/contacts     NDJSON stream: every profile + raw device tokens (portability)
+GET  /api/v1/export/workspace    JSON: segments, templates, newsletters, campaigns + history, journeys, suppressions
 POST /api/v1/exports             { type: contacts|events|messages|message_events, since?, until? }
                                  async → s3://$EXPORT_S3_BUCKET/…/part-*.ndjson.gz + manifest.json
 POST /api/v1/sdk-tokens          { externalId } → userToken (when SDK_REQUIRE_USER_TOKEN=true)
 GET  /api/v1/subscriptions       newsletters + topics (id, slug, kind)
 POST /api/v1/subscriptions       { updates: [{ externalId|email|anonymousId, groups: { "<id|slug>": bool } }] ≤100 }
+POST /api/v1/content/items       publish articles to the catalogue (optionally auto-send)
+GET  /api/v1/recommendations     ?externalId&strategy&limit       what a reader would be recommended
 ```
 
 ### Live Activities (iOS) and Live Updates (Android)
@@ -322,8 +392,9 @@ on `language`.
 ### Event webhooks (outbound)
 
 Settings → Event webhooks streams `message.sent|delivered|failed|bounced|opened|clicked|converted`
-to your endpoint as JSON batches signed with `X-Dispatch-Signature: t=<unix>,v1=<hmac-sha256(secret, "t.body")>`.
-Delivery is at-least-once with retries, so dedupe on the event `id`.
+and `contact.unsubscribed` to your endpoint as JSON batches signed with `X-Dispatch-Signature: t=<unix>,v1=<hmac-sha256(secret, "t.body")>`.
+Delivery is at-least-once with retries, so dedupe on the event `id`. An endpoint that keeps failing
+raises an integration alert and is paused after 100 consecutive failures.
 
 ### Legacy endpoints (still supported)
 
@@ -402,9 +473,21 @@ Operational notes:
 ## Development notes
 
 - `npx prisma studio` — browse the DB.
+- After a schema change, create the migration, run `npx prisma migrate deploy`, then restart
+  `npm run dev` and the worker so they load the new Prisma client.
 - The worker and app share `src/lib/`; the queue is isolated in `src/lib/queue/` if you
   ever want to swap it for BullMQ.
 - Kill the worker mid-campaign and restart it. Running jobs heartbeat every minute, and a job
   with no heartbeat for 5 minutes goes back to the queue. Messages are claimed atomically
   (`QUEUED → SENDING`), so already-sent messages are never sent again.
-- `npm test` runs the server tests (DB tests use `DATABASE_URL`). `npm run test:sdk` runs the SDK tests.
+- `PUSH_PROVIDER_MODE=mock` swaps push, SMS and WhatsApp providers for a mock (load tests,
+  demos). It's refused in production unless `LOADTEST_ALLOW_MOCK=true`.
+
+## Documentation
+
+- [docs/api.md](docs/api.md) — API reference, rate limits, errors, outbound events
+- [docs/operations.md](docs/operations.md) — alarms, runbooks, scaling, load testing
+- [docs/security.md](docs/security.md) — controls matrix, single sign-on (incl. Ping Identity), known gaps
+- [docs/accessibility.md](docs/accessibility.md) — WCAG 2.2 AA audit of the console and SDK UI
+- [docs/sdk-footprint.md](docs/sdk-footprint.md) — SDK size and startup impact
+- [examples/README.md](examples/README.md) — demo apps and the simulator relay

@@ -24,6 +24,7 @@ const PUBLIC_PREFIXES = [
   "/api/integrations/", // API-key auth in the route
   "/api/health",
   "/demo/",
+  "/product",
   "/login",
   "/api/auth/login",
   "/api/auth/bootstrap",

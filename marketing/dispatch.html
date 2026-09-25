@@ -1,0 +1,514 @@
+<title>Dispatch for Newsrooms</title>
+<meta name="description" content="Dispatch is the reader-messaging platform a newsroom runs itself: breaking-news push, in-app, content cards and journeys, from your own cloud.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --paper:#f4f5f1; --surface:#ffffff; --sunk:#e9ebe5; --ink:#14181f; --muted:#59616b; --rule:#d3d7cf;
+  --accent:#1f4fd8; --accent-ink:#ffffff; --flash:#f2b705; --flash-ink:#14181f; --good:#1d7a45;
+  --shadow:0 1px 2px rgba(20,24,31,.06),0 8px 24px rgba(20,24,31,.06);
+  --display:"Big Shoulders Display","Arial Narrow","Helvetica Neue",Arial,sans-serif;
+  --serif:"Newsreader",Georgia,"Times New Roman",serif;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  color-scheme:dark;
+  --paper:#0e1116; --surface:#161b22; --sunk:#1c222b; --ink:#e7eaee; --muted:#9aa3ae; --rule:#2a313b;
+  --accent:#86a6ff; --accent-ink:#0e1116; --flash:#f2b705; --flash-ink:#14181f; --good:#5cc98a;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);
+}}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --paper:#0e1116; --surface:#161b22; --sunk:#1c222b; --ink:#e7eaee; --muted:#9aa3ae; --rule:#2a313b;
+  --accent:#86a6ff; --accent-ink:#0e1116; --flash:#f2b705; --flash-ink:#14181f; --good:#5cc98a;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--paper);color:var(--ink);font:400 17px/1.6 var(--serif);-webkit-font-smoothing:antialiased}
+.wrap{max-width:1120px;margin:0 auto;padding-inline:24px}
+@media (max-width:480px){.wrap{padding-inline:16px}}
+a{color:var(--accent)}
+:focus-visible{outline:3px solid var(--accent);outline-offset:3px;border-radius:4px}
+h1,h2,h3{text-wrap:balance;margin:0}
+p{margin:0}
+.mono{font-family:var(--mono)}
+.label{font:500 12px/1.2 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.num{font-variant-numeric:tabular-nums}
+
+/* top bar */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:10;background:color-mix(in srgb,var(--paper) 88%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--rule)}
+.top .wrap{display:flex;align-items:center;gap:24px;min-height:60px}
+.mark{font:800 26px/1 var(--display);letter-spacing:.01em;color:var(--ink);text-decoration:none;display:flex;align-items:baseline;gap:2px}
+.mark i{font-style:normal;color:var(--flash)}
+.top nav{display:flex;gap:20px;margin-left:auto;font:500 14px var(--sans)}
+.top nav a{color:var(--muted);text-decoration:none}
+.top nav a:hover{color:var(--ink)}
+.btn{display:inline-flex;align-items:center;gap:8px;font:600 15px/1 var(--sans);padding:12px 18px;border-radius:6px;text-decoration:none;border:1px solid transparent;cursor:pointer}
+.btn.primary{background:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.ghost{border-color:var(--rule);color:var(--ink);background:transparent}
+.btn.ghost:hover{border-color:var(--ink)}
+.top .btn{padding:9px 14px;font-size:14px}
+@media (max-width:760px){.top nav{display:none}.top .btn{margin-left:auto}}
+
+/* hero */
+.hero{padding-block:56px 64px;border-bottom:1px solid var(--rule)}
+.hero .wrap{display:grid;grid-template-columns:1.1fr .9fr;gap:48px;align-items:center}
+@media (max-width:900px){.hero .wrap{grid-template-columns:1fr;gap:36px}}
+.slugline{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:18px}
+.chip{font:600 12px/1 var(--mono);letter-spacing:.14em;padding:6px 8px;border-radius:3px}
+.chip.flash{background:var(--flash);color:var(--flash-ink)}
+.chip.line{border:1px solid var(--rule);color:var(--muted)}
+.hero h1{font:800 clamp(48px,7.4vw,92px)/.9 var(--display);letter-spacing:-.005em;text-transform:uppercase}
+.hero h1 em{font-style:normal;color:var(--accent)}
+.lede{font-size:clamp(18px,2vw,21px);line-height:1.5;color:var(--muted);max-width:34em;margin-top:22px}
+.lede b{color:var(--ink);font-weight:500}
+.ctas{display:flex;flex-wrap:wrap;gap:12px;margin-top:28px}
+
+/* fan-out panel */
+.wire{background:var(--surface);border:1px solid var(--rule);border-radius:10px;box-shadow:var(--shadow);overflow:hidden;font-family:var(--sans)}
+.wire-head{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--rule);background:var(--sunk)}
+.wire-head .label{color:var(--ink)}
+.live{display:inline-flex;align-items:center;gap:6px;font:500 12px var(--mono);color:var(--good)}
+.live::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--good)}
+.alert{padding:16px;border-bottom:1px dashed var(--rule)}
+.alert .kicker{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.alert h3{font:600 18px/1.3 var(--sans)}
+.alert p{font:400 14px/1.45 var(--sans);color:var(--muted);margin-top:4px}
+.alert .meta{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:10px;font:400 12px var(--mono);color:var(--muted)}
+.fan{list-style:none;margin:0;padding:6px 0}
+.fan li{display:grid;grid-template-columns:28px 1fr auto;gap:12px;align-items:center;padding:10px 16px}
+.fan li+li{border-top:1px solid var(--rule)}
+.dev{width:28px;height:28px;border-radius:6px;display:grid;place-items:center;background:var(--sunk);color:var(--ink)}
+.dev svg{width:16px;height:16px}
+.fan b{font:500 14px var(--sans);display:block}
+.fan small{font:400 12px var(--mono);color:var(--muted)}
+.t{font:500 13px var(--mono);color:var(--good);font-variant-numeric:tabular-nums}
+@media (prefers-reduced-motion:no-preference){
+  .fan li{animation:arrive 6s ease-out infinite}
+  .fan li:nth-child(2){animation-delay:.35s}.fan li:nth-child(3){animation-delay:.7s}.fan li:nth-child(4){animation-delay:1.05s}
+  @keyframes arrive{0%,4%{background:transparent}9%{background:color-mix(in srgb,var(--flash) 22%,transparent)}22%,100%{background:transparent}}
+}
+.wire-foot{padding:10px 16px;border-top:1px solid var(--rule);font:400 12px var(--mono);color:var(--muted)}
+
+/* proof strip */
+.proof{padding-block:36px;border-bottom:1px solid var(--rule)}
+.proof .wrap{display:grid;grid-template-columns:repeat(4,1fr);gap:24px}
+@media (max-width:860px){.proof .wrap{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:420px){.proof .wrap{grid-template-columns:1fr}}
+.stat .big{font:800 44px/1 var(--display);font-variant-numeric:tabular-nums}
+.stat .big small{font-size:.5em;font-weight:600;margin-left:4px;color:var(--muted)}
+.stat p{font:400 14px/1.45 var(--sans);color:var(--muted);margin-top:8px}
+.footnote{font:400 12px/1.5 var(--mono);color:var(--muted);margin-top:18px;grid-column:1/-1}
+
+/* sections */
+section.block{padding-block:72px;border-bottom:1px solid var(--rule)}
+.head{display:grid;grid-template-columns:260px 1fr;gap:32px;margin-bottom:40px}
+@media (max-width:860px){.head{grid-template-columns:1fr;gap:10px}}
+.head h2{font:800 clamp(34px,4.4vw,52px)/.98 var(--display);text-transform:uppercase}
+.head p{color:var(--muted);max-width:40em;font-size:18px}
+
+/* screens */
+.screens{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
+@media (max-width:980px){.screens{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:480px){.screens{grid-template-columns:1fr}}
+.screen figcaption{font:400 14px/1.45 var(--sans);color:var(--muted);margin-top:12px}
+.screen figcaption b{display:block;color:var(--ink);font-weight:600;margin-bottom:2px}
+figure{margin:0}
+.phone{aspect-ratio:9/17;max-width:100%;border-radius:28px;border:8px solid #1b1f26;background:#dfe6ee;position:relative;overflow:hidden;font-family:var(--sans)}
+.phone .clock{position:absolute;top:26px;width:100%;text-align:center;font:600 34px/1 var(--sans);color:#fff;text-shadow:0 1px 8px rgba(0,0,0,.25)}
+.phone .date{position:absolute;top:66px;width:100%;text-align:center;font:500 11px var(--sans);color:#fff}
+.lock{background:linear-gradient(160deg,#3b5a86,#8aa7c7 55%,#c9b89a)}
+.banner{position:absolute;left:8px;right:8px;top:98px;background:rgba(255,255,255,.88);color:#14181f;border-radius:14px;padding:9px 10px;box-shadow:0 4px 14px rgba(0,0,0,.15)}
+.banner .row{display:flex;align-items:center;gap:6px;font:500 9px var(--sans);color:#59616b;margin-bottom:3px}
+.appicon{width:14px;height:14px;border-radius:4px;background:#14181f;color:#f2b705;font:800 9px/14px var(--display);text-align:center}
+.banner b{font:600 11px/1.25 var(--sans);display:block}
+.banner span{font:400 10px/1.3 var(--sans);display:block;color:#333}
+.app{background:#fff;color:#14181f;padding:14px 10px}
+.app .title{font:700 16px var(--sans);margin:6px 2px 10px}
+.card{border-radius:10px;overflow:hidden;background:#f0f1f4;margin-bottom:8px}
+.card .img{height:70px;background:linear-gradient(135deg,#1f3b73 0 38%,#b8222f 38% 46%,#f3f3f3 46% 54%,#b8222f 54% 62%,#f3f3f3 62% 70%,#b8222f 70% 78%,#8fb6e3 78%)}
+.card .txt{padding:8px 9px}
+.card b{font:600 11px var(--sans);display:block}
+.card span{font:400 9.5px/1.3 var(--sans);color:#59616b;display:block}
+.card em{font:600 9.5px var(--sans);color:#c7361f;font-style:normal;display:block;margin-top:3px}
+.pin{float:right;font:600 8px var(--mono);letter-spacing:.08em;color:#59616b}
+.row-item{display:flex;gap:8px;padding:6px 2px;border-top:1px solid #e6e7ea}
+.row-item i{width:38px;height:28px;border-radius:4px;background:#cfd8e2;flex:none}
+.row-item b{font:600 9.5px/1.25 var(--sans)}
+.row-item small{font:600 7.5px var(--mono);color:#c7361f;letter-spacing:.06em;display:block}
+.scrim{position:absolute;inset:0;background:rgba(20,24,31,.45);display:grid;place-items:center;padding:12px}
+.modal{background:#fff;color:#14181f;border-radius:14px;overflow:hidden;width:100%}
+.modal .img{height:64px;background:linear-gradient(180deg,#e8d9b5,#b9a47a 60%,#6d6348)}
+.modal .body{padding:10px}
+.modal b{font:700 12px var(--sans);display:block}
+.modal span{font:400 10px/1.35 var(--sans);color:#59616b;display:block;margin:4px 0 8px}
+.modal .acts{display:flex;gap:6px}
+.pill{font:600 10px var(--sans);padding:5px 10px;border-radius:12px;background:#c7361f;color:#fff}
+.pill.o{background:transparent;color:#c7361f;border:1px solid #c7361f}
+.browser{aspect-ratio:9/17;max-width:100%;border-radius:10px;border:1px solid var(--rule);background:#fff;overflow:hidden;position:relative;font-family:var(--sans);color:#14181f}
+.browser .bar{height:26px;background:#eceef1;display:flex;align-items:center;gap:5px;padding:0 9px}
+.browser .bar i{width:7px;height:7px;border-radius:50%;background:#c9ccd2}
+.browser .url{margin-left:6px;flex:1;height:14px;border-radius:7px;background:#fff;font:400 8px/14px var(--mono);color:#59616b;padding-left:6px}
+.browser .page{padding:12px 10px}
+.toast{position:absolute;right:8px;left:8px;bottom:12px;background:#1f232b;color:#fff;border-radius:10px;padding:9px 10px;box-shadow:0 8px 20px rgba(0,0,0,.3)}
+.toast .row{display:flex;gap:6px;align-items:center;font:500 8.5px var(--sans);color:#aab2bd;margin-bottom:3px}
+.toast b{font:600 11px/1.25 var(--sans);display:block}
+.toast span{font:400 9.5px/1.3 var(--sans);color:#cfd5dc;display:block}
+
+/* channels */
+.channels{display:flex;flex-wrap:wrap;gap:8px;margin-top:36px}
+.channels span{font:500 13px var(--sans);padding:7px 12px;border:1px solid var(--rule);border-radius:999px;background:var(--surface)}
+
+/* journey */
+.journey{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:start}
+@media (max-width:900px){.journey{grid-template-columns:1fr}}
+.flow{background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:24px;font-family:var(--sans);overflow-x:auto}
+.node{border:1px solid var(--rule);border-radius:8px;background:var(--paper);padding:10px 12px;min-width:0}
+.node .label{font-size:10.5px}
+.node b{display:block;font:600 14px/1.3 var(--sans);margin-top:4px}
+.node .n{float:right;font:500 11px var(--mono);color:var(--good)}
+.stem{width:1px;height:18px;background:var(--rule);margin:0 auto}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:14px;position:relative;padding-top:18px}
+.split::before{content:"";position:absolute;top:0;left:25%;right:25%;height:18px;border:1px solid var(--rule);border-bottom:0;border-radius:8px 8px 0 0}
+.branch{display:flex;flex-direction:column}
+.tag{align-self:center;font:500 10.5px var(--mono);letter-spacing:.08em;padding:3px 7px;border-radius:3px;background:var(--sunk);color:var(--muted);margin-bottom:8px}
+.center{max-width:260px;margin:0 auto}
+.points{display:grid;gap:22px}
+.points h3{font:600 18px/1.3 var(--sans);margin-bottom:4px}
+.points p{color:var(--muted);font-size:16px}
+
+/* why */
+.why{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border-top:1px solid var(--rule)}
+@media (max-width:900px){.why{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:560px){.why{grid-template-columns:1fr}}
+.why article{padding:24px 24px 28px 0;border-bottom:1px solid var(--rule)}
+.why article:not(:nth-child(3n)){border-right:1px solid var(--rule);padding-right:24px}
+.why article:not(:nth-child(3n+1)){padding-left:24px}
+@media (max-width:900px){.why article{padding:22px 20px 24px 0!important;border-right:0!important}.why article:nth-child(odd){border-right:1px solid var(--rule)!important;padding-right:20px!important}.why article:nth-child(even){padding-left:20px!important}}
+@media (max-width:560px){.why article{padding:20px 0!important;border-right:0!important}}
+.why .k{font:800 22px/1 var(--display);color:var(--accent);letter-spacing:.02em;text-transform:uppercase}
+.why h3{font:600 19px/1.3 var(--sans);margin:10px 0 6px}
+.why p{color:var(--muted);font-size:16px}
+
+/* compare */
+.tablewrap{overflow-x:auto;border:1px solid var(--rule);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:640px;font:400 15px/1.45 var(--sans)}
+th,td{text-align:left;padding:14px 18px;border-bottom:1px solid var(--rule);vertical-align:top}
+tr:last-child td{border-bottom:0}
+thead th{font:500 12px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);background:var(--sunk)}
+td:first-child{font-weight:600;width:22%}
+td.us{color:var(--ink)}
+td.them{color:var(--muted)}
+
+/* honest */
+.honest{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+@media (max-width:760px){.honest{grid-template-columns:1fr}}
+.honest div{border:1px solid var(--rule);border-radius:10px;padding:18px 20px;background:var(--surface)}
+.honest b{font:600 16px var(--sans);display:block;margin-bottom:6px}
+.honest p{font:400 15px/1.5 var(--sans);color:var(--muted)}
+
+/* stack */
+.stack{display:grid;grid-template-columns:repeat(3,1fr);gap:28px}
+@media (max-width:860px){.stack{grid-template-columns:1fr}}
+.stack h3{font:600 17px var(--sans);margin-bottom:10px}
+.stack ul{margin:0;padding:0;list-style:none;display:grid;gap:8px;font:400 15px/1.45 var(--sans);color:var(--muted)}
+.stack li{padding-left:16px;position:relative}
+.stack li::before{content:"";position:absolute;left:0;top:.62em;width:6px;height:6px;background:var(--accent);border-radius:1px}
+.sizes{margin-top:28px;overflow-x:auto}
+.sizes table{min-width:520px}
+
+/* pilot */
+.plan{display:grid;grid-template-columns:repeat(4,1fr);gap:0;counter-reset:w}
+@media (max-width:900px){.plan{grid-template-columns:1fr 1fr}}
+@media (max-width:520px){.plan{grid-template-columns:1fr}}
+.step{padding:20px 22px 22px 0;border-top:3px solid var(--ink)}
+.step+.step{padding-left:22px}
+@media (max-width:900px){.step{padding:20px 16px 22px 0!important}}
+.step .wk{font:500 12px var(--mono);letter-spacing:.1em;color:var(--muted)}
+.step h3{font:600 18px/1.3 var(--sans);margin:8px 0 6px}
+.step p{font:400 15px/1.5 var(--sans);color:var(--muted)}
+.gate{margin-top:36px;display:grid;grid-template-columns:auto 1fr;gap:20px;align-items:start;background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:22px}
+@media (max-width:620px){.gate{grid-template-columns:1fr}}
+.gate ul{margin:0;padding-left:18px;font:400 16px/1.6 var(--sans)}
+
+/* cta */
+.cta{padding-block:80px}
+.cta .wrap{display:grid;grid-template-columns:1.2fr .8fr;gap:40px;align-items:end}
+@media (max-width:860px){.cta .wrap{grid-template-columns:1fr}}
+.cta h2{font:800 clamp(40px,6vw,76px)/.92 var(--display);text-transform:uppercase}
+.cta p{color:var(--muted);font-size:18px;margin-top:16px;max-width:32em}
+.asks{display:grid;gap:12px;font:400 15px/1.5 var(--sans)}
+.asks div{display:grid;grid-template-columns:76px 1fr;gap:12px}
+.asks span{font:600 13px var(--mono);color:var(--accent)}
+footer{border-top:1px solid var(--rule);padding-block:24px;font:400 13px var(--mono);color:var(--muted)}
+footer .wrap{display:flex;flex-wrap:wrap;gap:12px 24px;justify-content:space-between}
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <a class="mark" href="#top" aria-label="Dispatch home">Dispatch<i>.</i></a>
+    <nav aria-label="Sections">
+      <a href="#product">Product</a>
+      <a href="#journeys">Journeys</a>
+      <a href="#why">Why own it</a>
+      <a href="#pilot">Pilot</a>
+    </nav>
+    <a class="btn primary" href="#pilot">Start the pilot</a>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero">
+    <div class="wrap">
+      <div>
+        <div class="slugline">
+          <span class="chip flash">FLASH</span>
+          <span class="chip line">READER MESSAGING · SELF-HOSTED</span>
+        </div>
+        <h1>Breaking news, on every screen, <em>from your own servers.</em></h1>
+        <p class="lede">Dispatch is the reader-messaging platform a newsroom runs itself. <b>Push, in-app, content cards and journeys</b> for iOS, Android, React Native and the web, deployed in your cloud account, with reader data that never leaves it.</p>
+        <div class="ctas">
+          <a class="btn primary" href="#pilot">See the 8-week pilot</a>
+          <a class="btn ghost" href="#product">What it does</a>
+        </div>
+      </div>
+
+      <div class="wire" aria-label="Example: one breaking alert fanned out to four devices">
+        <div class="wire-head"><span class="label">Console · Campaign</span><span class="live">Sent</span></div>
+        <div class="alert">
+          <div class="kicker"><span class="chip flash">FLASH</span><span class="label">All phones · high priority</span></div>
+          <h3>BREAKING: Election result declared</h3>
+          <p>Sam, the final seat has been called. Read the full results and analysis.</p>
+          <div class="meta"><span>slug election-result</span><span>collapse key on</span><span>bypasses quiet hours</span></div>
+        </div>
+        <ul class="fan">
+          <li><span class="dev" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="1.5" width="8" height="13" rx="2"/><path d="M7 12.5h2"/></svg></span><div><b>iOS app</b><small>Swift SDK · APNs</small></div><span class="t">delivered</span></li>
+          <li><span class="dev" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="1.5" width="8" height="13" rx="2"/><path d="M6 4h4"/></svg></span><div><b>React Native app</b><small>React SDK · APNs / FCM</small></div><span class="t">delivered</span></li>
+          <li><span class="dev" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="1.5" width="8" height="13" rx="2"/><circle cx="8" cy="12" r=".6" fill="currentColor"/></svg></span><div><b>Android app</b><small>Kotlin SDK · FCM</small></div><span class="t">delivered</span></li>
+          <li><span class="dev" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.5" y="3" width="13" height="10" rx="1.5"/><path d="M1.5 6h13"/></svg></span><div><b>Web reader</b><small>React SDK · Web Push</small></div><span class="t">delivered</span></li>
+        </ul>
+        <div class="wire-foot">One campaign, one template, four platforms. Recorded in the product demo.</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="proof" aria-label="Measured results">
+    <div class="wrap">
+      <div class="stat"><div class="big num">1,000,000</div><p>devices handed to the push provider in <b class="num">88.6 s</b>, about 720,000 a minute</p></div>
+      <div class="stat"><div class="big num">4<small>SDKs</small></div><p>iOS, Android, React Native and web, with a demo app for each</p></div>
+      <div class="stat"><div class="big num">56<small>/ 67</small></div><p>technical RFP requirements met today; the rest are go-live tasks, not missing features</p></div>
+      <div class="stat"><div class="big num">4.8<small>KB</small></div><p>web SDK, gzipped. Android adds about 42 KB to an APK.</p></div>
+      <p class="footnote">Throughput measured on one laptop with 4 workers against a simulated provider (400 ms per 500-message call). Workers scale out on AWS; production figures come from the pilot.</p>
+    </div>
+  </section>
+
+  <section class="block" id="product">
+    <div class="wrap">
+      <div class="head">
+        <h2>One send.<br>Every screen.</h2>
+        <p>Editors write one message in the console. Dispatch renders it per reader, in their language and with their recommendations, then delivers it through the right provider for each device.</p>
+      </div>
+
+      <div class="screens">
+        <figure class="screen">
+          <div class="phone lock" role="img" aria-label="Lock screen showing a breaking-news push notification">
+            <div class="clock num">21:04</div><div class="date">Thursday 24 September</div>
+            <div class="banner"><div class="row"><span class="appicon">D</span>DISPATCH NEWS · now</div><b>BREAKING: Election result declared</b><span>Sam, the final seat has been called. Read the full results.</span></div>
+          </div>
+          <figcaption><b>Rich push</b>Images, priority, collapse keys and expiry. Breaking news skips quiet hours and caps.</figcaption>
+        </figure>
+        <figure class="screen">
+          <div class="phone app" role="img" aria-label="App feed with a pinned content card">
+            <div class="title">Dispatch News</div>
+            <div class="card"><div class="img"></div><div class="txt"><span class="pin">PINNED</span><b>Election night — live</b><span>Results as they're declared, seat by seat.</span><em>Follow live →</em></div></div>
+            <div class="row-item"><i></i><div><small>WORLD</small><b>Polls open in a knife-edge national election</b></div></div>
+            <div class="row-item"><i></i><div><small>TECHNOLOGY</small><b>Parliament passes landmark AI safety law</b></div></div>
+          </div>
+          <figcaption><b>Content cards</b>Pinned, dismissible cards inside the feed, with views, clicks and dismissals reported back.</figcaption>
+        </figure>
+        <figure class="screen">
+          <div class="phone app" role="img" aria-label="In-app welcome message over the app">
+            <div class="title">Dispatch News</div>
+            <div class="card"><div class="img"></div><div class="txt"><b>Election night — live</b></div></div>
+            <div class="scrim"><div class="modal"><div class="img"></div><div class="body"><b>Welcome to Dispatch News</b><span>Your briefing starts with: Marathon world record falls in Berlin</span><div class="acts"><span class="pill">Read it</span><span class="pill o">Later</span></div></div></div></div>
+          </div>
+          <figcaption><b>In-app and message centre</b>Modals, banners and an inbox, targeted like any campaign and accessible by default.</figcaption>
+        </figure>
+        <figure class="screen">
+          <div class="browser" role="img" aria-label="Browser showing a web push notification">
+            <div class="bar"><i></i><i></i><i></i><span class="url">news.example.com</span></div>
+            <div class="page">
+              <div style="font:700 15px var(--sans);margin-bottom:8px">Dispatch News</div>
+              <div class="card"><div class="img"></div><div class="txt"><b>Election night — live</b><span>Results as they're declared.</span></div></div>
+              <div class="row-item"><i></i><div><small>MARKETS</small><b>Central bank holds rates steady</b></div></div>
+            </div>
+            <div class="toast"><div class="row"><span class="appicon">D</span>news.example.com</div><b>Tech Weekly</b><span>Chipmakers rally on record AI orders, and more in today's edition</span></div>
+          </div>
+          <figcaption><b>Web push</b>Standard VAPID web push with a 1.8 KB service worker. No third-party script on your pages.</figcaption>
+        </figure>
+      </div>
+
+      <div class="channels" aria-label="Channels">
+        <span>APNs direct</span><span>Firebase (FCM)</span><span>Web Push</span><span>In-app</span><span>Message centre</span><span>Content cards</span><span>Email (SES)</span><span>SMS and WhatsApp (Twilio)</span><span>Live Activities</span><span>Signed webhooks</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="journeys">
+    <div class="wrap">
+      <div class="head">
+        <h2>Journeys that react to reading.</h2>
+        <p>Build a path in the visual editor and let each reader's behaviour pick the branch. Every step shows live counts, so editors see what's working while the story is still running.</p>
+      </div>
+      <div class="journey">
+        <div class="flow" aria-label="Example journey: Election night, follow or nudge">
+          <div class="center">
+            <div class="node"><span class="label">Entry event</span><b class="mono" style="font-size:13px">election_followed</b></div>
+            <div class="stem"></div>
+            <div class="node"><span class="n num">1 passed</span><span class="label">Send message</span><b>Welcome (in-app)</b></div>
+            <div class="stem"></div>
+            <div class="node"><span class="n num">1 passed</span><span class="label">Wait for event</span><b>Until <span class="mono" style="font-size:13px">article_read</span>, at most 2 min</b></div>
+          </div>
+          <div class="split">
+            <div class="branch">
+              <span class="tag">DID IT · 1</span>
+              <div class="node"><span class="n num">1 passed</span><span class="label">Condition</span><b>Reachable by push</b></div>
+              <div class="stem"></div>
+              <span class="tag">YES · 1</span>
+              <div class="node"><span class="n num">1 passed</span><span class="label">Send message</span><b>Breaking alert, all phones</b></div>
+            </div>
+            <div class="branch">
+              <span class="tag">TIMED OUT · 0</span>
+              <div class="node"><span class="label">Send message</span><b>Election-night card</b></div>
+            </div>
+          </div>
+        </div>
+        <div class="points">
+          <div><h3>Branch on what readers do</h3><p>Condition splits on events, opens, profile fields, segments and subscriptions. A/B splits with fixed weights. Wait-for-event with a timeout path.</p></div>
+          <div><h3>Start from anything</h3><p>A segment when you activate it, an event from the SDK or your backend, or a new article arriving in an RSS or Atom feed.</p></div>
+          <div><h3>Send at each reader's best hour</h3><p>Send-time optimisation learns when each reader usually opens and delivers within the next 24 hours.</p></div>
+          <div><h3>Newsletters and topics built in</h3><p>Opt-in newsletters, opt-out topics, a preference centre, quiet hours and frequency caps apply to every send.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="why">
+    <div class="wrap">
+      <div class="head">
+        <h2>Why own it.</h2>
+        <p>For most companies, messaging is a marketing tool. For a newsroom it is how the story reaches people first, and where the reader relationship lives.</p>
+      </div>
+      <div class="why">
+        <article><div class="k">Data</div><h3>Reader data stays with you</h3><p>Device tokens, reading history and subscriptions stay in your cloud account. There is no new data processor to assess and no cross-border transfer.</p></article>
+        <article><div class="k">Speed</div><h3>Your alert goes first</h3><p>Your own queue and workers, not a shared one. Breaking alerts jump the line, and you add capacity before an election night.</p></article>
+        <article><div class="k">Cost</div><h3>Costs follow infrastructure</h3><p>Vendor bills grow with monthly active readers and message volume. Dispatch costs a small team and the cloud it runs on.</p></article>
+        <article><div class="k">Fit</div><h3>Built for news</h3><p>Feed-driven sends, Live Activities, per-language templates and article recommendations are core features, not paid add-ons.</p></article>
+        <article><div class="k">Stack</div><h3>Plugs into what you run</h3><p>Sign-in through your identity provider, nightly loads into your warehouse, alarms in CloudWatch, and an API your CMS can call.</p></article>
+        <article><div class="k">Exit</div><h3>Nothing to migrate away from</h3><p>You keep the SDKs, the data model and the history. No re-integration project in every app when a contract ends.</p></article>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="wrap">
+      <div class="head">
+        <h2>Buy or own.</h2>
+        <p>The same requirements, answered two ways.</p>
+      </div>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th scope="col"></th><th scope="col">Engagement vendor</th><th scope="col">Dispatch</th></tr></thead>
+          <tbody>
+            <tr><td>Time to first send</td><td class="them">Weeks: contract, security review, SDK work</td><td class="us">Weeks: already sending to iOS, Android and web</td></tr>
+            <tr><td>What drives cost</td><td class="them">Licence per active reader and per message</td><td class="us">Cloud infrastructure and a small team</td></tr>
+            <tr><td>Where reader data lives</td><td class="them">The vendor's cloud</td><td class="us">Your cloud account</td></tr>
+            <tr><td>Breaking-news priority</td><td class="them">A shared, multi-tenant queue</td><td class="us">Your own queue; you set the order and the capacity</td></tr>
+            <tr><td>Roadmap</td><td class="them">The vendor's</td><td class="us">Yours</td></tr>
+            <tr><td>Leaving</td><td class="them">SDK re-integration and a data migration</td><td class="us">Nothing to leave</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="margin-top:48px">
+        <p class="label" style="margin-bottom:14px">What a vendor does better, and how we cover it</p>
+        <div class="honest">
+          <div><b>Years of production hardening</b><p>A shadow run beside your current tool comes before any cut-over, and the pilot gate is measured, not assumed.</p></div>
+          <div><b>A contractual SLA and 24/7 support</b><p>It joins the platform team's on-call rota. The design is multi-AZ with health checks and autoscaling, and runbooks are written.</p></div>
+          <div><b>Certifications and pen-tested software</b><p>An external penetration test runs during the pilot. The platform sits inside your existing certified environment.</p></div>
+          <div><b>Deep marketing analytics</b><p>Events land in Snowflake, Redshift or BigQuery every night, so analysts use the BI tools they already have.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="wrap">
+      <div class="head">
+        <h2>Built on what you already run.</h2>
+        <p>No exotic infrastructure to learn. TypeScript, Postgres and containers on AWS, provisioned with Terraform.</p>
+      </div>
+      <div class="stack">
+        <div><h3>Security</h3><ul><li>Single sign-on with SAML 2.0 or OIDC, including Ping (PingFederate, PingOne, PingID)</li><li>Two-step verification with recovery codes</li><li>Audit log of every sign-in, change and export</li><li>Rate limits and a web application firewall</li></ul></div>
+        <div><h3>Operations</h3><ul><li>Postgres job queue with scalable worker processes; no Redis or Kafka</li><li>Integration-failure alerts to Slack or Teams</li><li>CloudWatch alarms and dashboards</li><li>Zero-downtime deploys with migrations first</li></ul></div>
+        <div><h3>Data</h3><ul><li>Segment in and out, signed event webhooks</li><li>Nightly S3 export with generated warehouse setup</li><li>Full workspace export at any time</li><li>Retention windows you set per data type</li></ul></div>
+      </div>
+      <div class="sizes tablewrap">
+        <table>
+          <thead><tr><th scope="col">SDK</th><th scope="col">Language</th><th scope="col">Added size</th></tr></thead>
+          <tbody>
+            <tr><td>Web</td><td>TypeScript</td><td class="num">4.8 KB gzipped, plus a 1.8 KB service worker</td></tr>
+            <tr><td>React Native</td><td>TypeScript</td><td class="num">Same core as web, 4.8 KB gzipped</td></tr>
+            <tr><td>Android</td><td>Kotlin</td><td class="num">about 42 KB compressed in an APK</td></tr>
+            <tr><td>iOS</td><td>Swift</td><td class="num">about 254 KB before the linker strips unused code</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="pilot">
+    <div class="wrap">
+      <div class="head">
+        <h2>Prove it in eight weeks.</h2>
+        <p>Run Dispatch beside the current tool, measure both, then decide. If it doesn't clear the gate, the pilot is all it cost.</p>
+      </div>
+      <div class="plan">
+        <div class="step"><span class="wk">WEEKS 1–2</span><h3>Deploy</h3><p>Staging and production on AWS from the existing Terraform. Sign-in through your identity provider.</p></div>
+        <div class="step"><span class="wk">WEEKS 2–4</span><h3>Integrate one app</h3><p>Add the SDK to one app behind a feature flag, and load-test on real APNs and FCM.</p></div>
+        <div class="step"><span class="wk">WEEKS 4–7</span><h3>Shadow run</h3><p>Send breaking alerts through both systems to an internal audience. Pen test and a disaster-recovery drill run alongside.</p></div>
+        <div class="step"><span class="wk">WEEK 8</span><h3>Decide</h3><p>Compare latency, delivery and opens side by side, plus a three-year cost from real quotes.</p></div>
+      </div>
+      <div class="gate">
+        <span class="chip flash">THE GATE</span>
+        <ul>
+          <li>Median alert delivery at or below the current tool's</li>
+          <li>No lost alerts during the shadow run</li>
+          <li>No critical penetration-test findings left open</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta">
+    <div class="wrap">
+      <div>
+        <h2>Own the alert.</h2>
+        <p>The platform already runs. What's needed now is a pilot, a security slot and three vendor quotes to compare against.</p>
+      </div>
+      <div class="asks">
+        <div><span>Cloud</span><p>An AWS staging and production account, and one app team's time for the SDK</p></div>
+        <div><span>Security</span><p>A penetration-test slot with the security team in weeks 4 to 6</p></div>
+        <div><span>Quotes</span><p>Vendor quotes for an honest three-year cost comparison</p></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap"><span>Dispatch · self-hosted reader messaging</span><span>iOS · Android · React Native · Web</span></div>
+</footer>

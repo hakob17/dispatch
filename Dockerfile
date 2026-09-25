@@ -24,6 +24,7 @@ COPY --from=build --chown=node:node /app/public ./public
 COPY --from=build --chown=node:node /app/prisma ./prisma
 COPY --from=build --chown=node:node /app/src ./src
 COPY --from=build --chown=node:node /app/worker ./worker
+COPY --from=build --chown=node:node /app/scripts ./scripts
 USER node
 EXPOSE 3000 8081
 CMD ["npm", "run", "start", "--", "-p", "3000"]

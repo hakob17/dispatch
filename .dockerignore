@@ -9,3 +9,6 @@ packages/*/dist
 infra
 *.md
 .claude
+examples
+packages/ios-sdk
+packages/android-sdk

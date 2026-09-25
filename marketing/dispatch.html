@@ -221,7 +221,7 @@ td.them{color:var(--muted)}
 .sizes{margin-top:28px;overflow-x:auto}
 .sizes table{min-width:520px}
 
-/* pilot */
+/* deploy steps */
 .plan{display:grid;grid-template-columns:repeat(4,1fr);gap:0;counter-reset:w}
 @media (max-width:900px){.plan{grid-template-columns:1fr 1fr}}
 @media (max-width:520px){.plan{grid-template-columns:1fr}}
@@ -255,9 +255,9 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:12px 24px;justify-content:space-bet
       <a href="#product">Product</a>
       <a href="#journeys">Journeys</a>
       <a href="#why">Why own it</a>
-      <a href="#pilot">Pilot</a>
+      <a href="#deploy">Deploy</a>
     </nav>
-    <a class="btn primary" href="#pilot">Start the pilot</a>
+    <a class="btn primary" href="#demo">Request a demo</a>
   </div>
 </header>
 
@@ -272,7 +272,7 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:12px 24px;justify-content:space-bet
         <h1>Breaking news, on every screen, <em>from your own servers.</em></h1>
         <p class="lede">Dispatch is the reader-messaging platform a newsroom runs itself. <b>Push, in-app, content cards and journeys</b> for iOS, Android, React Native and the web, deployed in your cloud account, with reader data that never leaves it.</p>
         <div class="ctas">
-          <a class="btn primary" href="#pilot">See the 8-week pilot</a>
+          <a class="btn primary" href="#demo">Request a demo</a>
           <a class="btn ghost" href="#product">What it does</a>
         </div>
       </div>
@@ -300,9 +300,9 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:12px 24px;justify-content:space-bet
     <div class="wrap">
       <div class="stat"><div class="big num">1,000,000</div><p>devices handed to the push provider in <b class="num">88.6 s</b>, about 720,000 a minute</p></div>
       <div class="stat"><div class="big num">4<small>SDKs</small></div><p>iOS, Android, React Native and web, with a demo app for each</p></div>
-      <div class="stat"><div class="big num">56<small>/ 67</small></div><p>technical RFP requirements met today; the rest are go-live tasks, not missing features</p></div>
+      <div class="stat"><div class="big num">10<small>channels</small></div><p>push, web push, in-app, inbox, cards, email, SMS, WhatsApp, Live Activities and webhooks</p></div>
       <div class="stat"><div class="big num">4.8<small>KB</small></div><p>web SDK, gzipped. Android adds about 42 KB to an APK.</p></div>
-      <p class="footnote">Throughput measured on one laptop with 4 workers against a simulated provider (400 ms per 500-message call). Workers scale out on AWS; production figures come from the pilot.</p>
+      <p class="footnote">Throughput measured on one laptop with 4 workers against a simulated provider (400 ms per 500-message call). Workers scale out horizontally on AWS.</p>
     </div>
   </section>
 
@@ -437,9 +437,9 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:12px 24px;justify-content:space-bet
       <div style="margin-top:48px">
         <p class="label" style="margin-bottom:14px">What a vendor does better, and how we cover it</p>
         <div class="honest">
-          <div><b>Years of production hardening</b><p>A shadow run beside your current tool comes before any cut-over, and the pilot gate is measured, not assumed.</p></div>
-          <div><b>A contractual SLA and 24/7 support</b><p>It joins the platform team's on-call rota. The design is multi-AZ with health checks and autoscaling, and runbooks are written.</p></div>
-          <div><b>Certifications and pen-tested software</b><p>An external penetration test runs during the pilot. The platform sits inside your existing certified environment.</p></div>
+          <div><b>Years of production hardening</b><p>Run Dispatch beside your current tool on a test audience first, and cut over only when the numbers match.</p></div>
+          <div><b>A contractual SLA and 24/7 support</b><p>Your platform team runs it like any other service. It is multi-AZ with health checks and autoscaling, and the runbooks ship with it.</p></div>
+          <div><b>Certifications and pen-tested software</b><p>It runs inside your own certified environment, and your security team can test and review every line of it.</p></div>
           <div><b>Deep marketing analytics</b><p>Events land in Snowflake, Redshift or BigQuery every night, so analysts use the BI tools they already have.</p></div>
         </div>
       </div>
@@ -471,39 +471,36 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:12px 24px;justify-content:space-bet
     </div>
   </section>
 
-  <section class="block" id="pilot">
+  <section class="block" id="deploy">
     <div class="wrap">
       <div class="head">
-        <h2>Prove it in eight weeks.</h2>
-        <p>Run Dispatch beside the current tool, measure both, then decide. If it doesn't clear the gate, the pilot is all it cost.</p>
+        <h2>Running in your cloud this week.</h2>
+        <p>Dispatch ships with Terraform for AWS and a one-command deploy. Your apps add a small SDK, and editors sign in with the identity provider you already use.</p>
       </div>
       <div class="plan">
-        <div class="step"><span class="wk">WEEKS 1–2</span><h3>Deploy</h3><p>Staging and production on AWS from the existing Terraform. Sign-in through your identity provider.</p></div>
-        <div class="step"><span class="wk">WEEKS 2–4</span><h3>Integrate one app</h3><p>Add the SDK to one app behind a feature flag, and load-test on real APNs and FCM.</p></div>
-        <div class="step"><span class="wk">WEEKS 4–7</span><h3>Shadow run</h3><p>Send breaking alerts through both systems to an internal audience. Pen test and a disaster-recovery drill run alongside.</p></div>
-        <div class="step"><span class="wk">WEEK 8</span><h3>Decide</h3><p>Compare latency, delivery and opens side by side, plus a three-year cost from real quotes.</p></div>
+        <div class="step"><span class="wk">STEP 1</span><h3>Provision</h3><p>Apply the Terraform: network, Postgres, containers, email and alarms, in your AWS account.</p></div>
+        <div class="step"><span class="wk">STEP 2</span><h3>Deploy</h3><p>Build and roll out with one script. Migrations run before new code takes traffic.</p></div>
+        <div class="step"><span class="wk">STEP 3</span><h3>Connect sign-in</h3><p>Point SAML or OIDC at your identity provider and map its groups to admin rights.</p></div>
+        <div class="step"><span class="wk">STEP 4</span><h3>Add the SDK</h3><p>Drop the SDK into your apps and site, register for push, and send your first alert.</p></div>
       </div>
       <div class="gate">
-        <span class="chip flash">THE GATE</span>
-        <ul>
-          <li>Median alert delivery at or below the current tool's</li>
-          <li>No lost alerts during the shadow run</li>
-          <li>No critical penetration-test findings left open</li>
-        </ul>
+        <span class="chip flash">DEPLOY</span>
+        <div class="tablewrap" style="border:0;background:transparent"><pre class="mono" style="margin:0;font-size:14px;line-height:1.7;white-space:pre">terraform -chdir=infra/aws apply
+scripts/aws-deploy.sh</pre></div>
       </div>
     </div>
   </section>
 
-  <section class="cta">
+  <section class="cta" id="demo">
     <div class="wrap">
       <div>
         <h2>Own the alert.</h2>
-        <p>The platform already runs. What's needed now is a pilot, a security slot and three vendor quotes to compare against.</p>
+        <p>See one breaking alert reach iOS, Android, React Native and the web from a console you run yourself.</p>
       </div>
       <div class="asks">
-        <div><span>Cloud</span><p>An AWS staging and production account, and one app team's time for the SDK</p></div>
-        <div><span>Security</span><p>A penetration-test slot with the security team in weeks 4 to 6</p></div>
-        <div><span>Quotes</span><p>Vendor quotes for an honest three-year cost comparison</p></div>
+        <div><span>Demo</span><p>A 30-minute walkthrough: campaigns, cards, journeys and in-app, live on real devices</p></div>
+        <div><span>Trial</span><p>Deploy into a sandbox account of your own and send to your team's phones</p></div>
+        <div><span>Docs</span><p>API reference, SDK guides, security and operations runbooks</p></div>
       </div>
     </div>
   </section>

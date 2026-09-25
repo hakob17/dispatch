@@ -460,7 +460,7 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:12px 24px;justify-content:space-bet
       </div>
       <div class="stack">
         <div><h3>Security</h3><ul><li>Single sign-on with SAML 2.0 or OIDC, including Ping (PingFederate, PingOne, PingID)</li><li>Two-step verification with recovery codes</li><li>Audit log of every sign-in, change and export</li><li>Rate limits and a web application firewall</li></ul></div>
-        <div><h3>Operations</h3><ul><li>Postgres job queue with scalable worker processes; no Redis or Kafka</li><li>Integration-failure alerts to Slack or Teams</li><li>CloudWatch alarms and dashboards</li><li>Zero-downtime deploys with migrations first</li></ul></div>
+        <div><h3>Operations</h3><ul><li>One database to run: jobs are saved with the data they act on, so none are lost, and you add workers to go faster</li><li>Integration-failure alerts to Slack or Teams</li><li>CloudWatch alarms and dashboards</li><li>Zero-downtime deploys with migrations first</li></ul></div>
         <div><h3>Data</h3><ul><li>Segment in and out, signed event webhooks</li><li>Nightly S3 export with generated warehouse setup</li><li>Full workspace export at any time</li><li>Retention windows you set per data type</li></ul></div>
       </div>
       <div class="sizes tablewrap">
